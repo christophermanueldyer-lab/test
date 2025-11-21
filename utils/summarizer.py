@@ -1,22 +1,22 @@
-"""OpenAI integration for podcast summarization."""
+"""Anthropic Claude API integration for podcast summarization."""
 import json
 import os
 from typing import Dict, Optional
-from openai import OpenAI
+from anthropic import Anthropic
 
 
 class PodcastSummarizer:
-    """Generate podcast summaries using OpenAI API."""
+    """Generate podcast summaries using Anthropic Claude API."""
 
     def __init__(self, api_key: str, prompts_file: str = "config/prompts.json"):
         """
         Initialize the summarizer.
 
         Args:
-            api_key: OpenAI API key
+            api_key: Anthropic API key
             prompts_file: Path to prompts configuration file
         """
-        self.client = OpenAI(api_key=api_key)
+        self.client = Anthropic(api_key=api_key)
         self.prompts = self._load_prompts(prompts_file)
 
     def _load_prompts(self, prompts_file: str) -> Dict:
@@ -113,18 +113,18 @@ Please summarize the following podcast episode.
 {transcript[:15000]}
 """
 
-            # Call OpenAI API
-            response = self.client.chat.completions.create(
-                model="gpt-4o-mini",  # Using GPT-4o-mini for cost efficiency
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
+            # Call Claude API
+            response = self.client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=4096,
                 temperature=0.7,
-                max_tokens=2500
+                system=system_prompt,
+                messages=[
+                    {"role": "user", "content": user_prompt}
+                ]
             )
 
-            summary = response.choices[0].message.content
+            summary = response.content[0].text
 
             return True, summary, None
 
@@ -135,9 +135,10 @@ Please summarize the following podcast episode.
             Error: {str(e)}
 
             Possible reasons:
-            • Invalid or expired OpenAI API key
+            • Invalid or expired Anthropic API key
             • API rate limit reached
             • Network connection issue
+            • Insufficient API credits
 
             Please check your API key and try again.
             """

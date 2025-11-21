@@ -61,19 +61,19 @@ def main():
     )
 
     # Check for API keys
-    openai_key = os.getenv('OPENAI_API_KEY')
+    anthropic_key = os.getenv('ANTHROPIC_API_KEY')
     youtube_key = os.getenv('YOUTUBE_API_KEY')
 
-    if not openai_key:
+    if not anthropic_key:
         st.error("""
-        ⚠️ **OpenAI API Key not found!**
+        ⚠️ **Anthropic API Key not found!**
 
         Please:
         1. Copy `.env.example` to `.env`
-        2. Add your OpenAI API key to the `.env` file
+        2. Add your Anthropic API key to the `.env` file
         3. Restart the application
 
-        Get your API key at: https://platform.openai.com/api-keys
+        Get your API key at: https://console.anthropic.com/settings/keys
         """)
         return
 
@@ -95,7 +95,7 @@ def main():
 
     with col2:
         # Get available styles
-        summarizer = PodcastSummarizer(openai_key)
+        summarizer = PodcastSummarizer(anthropic_key)
         styles = summarizer.get_available_styles()
 
         # Create mapping for dropdown

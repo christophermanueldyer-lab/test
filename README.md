@@ -26,21 +26,21 @@ An AI-powered web application that automatically generates summaries of podcasts
 ## 📋 Prerequisites
 
 - **Python 3.9+** installed on your computer
-- **OpenAI API Key** (required) - See setup instructions below
+- **Anthropic API Key** (required) - See setup instructions below
 - **YouTube Data API Key** (optional but recommended) - Improves Spotify fallback
 
 ### Getting Your API Keys
 
-#### OpenAI API Key (Required)
+#### Anthropic API Key (Required)
 
-⚠️ **Important**: ChatGPT Plus subscription does NOT include API access. You need a separate API account.
+⚠️ **Important**: Claude Pro subscription does NOT include API access. You need a separate API account.
 
-1. Go to [platform.openai.com](https://platform.openai.com)
-2. Sign up or log in (separate from chat.openai.com)
-3. Navigate to **API Keys** section
-4. Click **Create new secret key**
-5. Copy the key (it starts with `sk-...`)
-6. **Pricing**: Pay-as-you-go, typically $0.01-0.03 per podcast summary
+1. Go to [console.anthropic.com](https://console.anthropic.com)
+2. Sign up or log in (separate from claude.ai)
+3. Navigate to **API Keys** section in Settings
+4. Click **Create Key**
+5. Copy the key (it starts with `sk-ant-...`)
+6. **Pricing**: Pay-as-you-go, typically $0.03-0.05 per podcast summary (Claude 3.5 Sonnet)
 7. **Free Credit**: New accounts get $5 free credit
 
 #### YouTube Data API Key (Optional)
@@ -111,7 +111,7 @@ pip install -r requirements.txt
 
 This will install:
 - Streamlit (web interface)
-- OpenAI (AI summarization)
+- Anthropic (Claude API for AI summarization)
 - YouTube Transcript API (transcript fetching)
 - Google API Client (YouTube search)
 - And other dependencies
@@ -135,7 +135,7 @@ This will install:
 3. Add your API keys:
 
    ```env
-   OPENAI_API_KEY=sk-proj-your-actual-key-here
+   ANTHROPIC_API_KEY=sk-ant-your-actual-key-here
    YOUTUBE_API_KEY=your-youtube-api-key-here
    ```
 
@@ -200,7 +200,7 @@ Example:
 
 ## 🔧 Troubleshooting
 
-### "OpenAI API Key not found"
+### "Anthropic API Key not found"
 - Make sure you've created a `.env` file (not `.env.example`)
 - Check that your API key is correctly pasted
 - Ensure there are no extra spaces or quotes around the key
@@ -215,8 +215,8 @@ Example:
 - Or manually search YouTube and use that URL instead
 - Some Spotify exclusives may not be on YouTube
 
-### "Invalid or expired OpenAI API key"
-- Verify your key at [platform.openai.com](https://platform.openai.com)
+### "Invalid or expired Anthropic API key"
+- Verify your key at [console.anthropic.com](https://console.anthropic.com)
 - Check if you have billing enabled
 - Make sure you have API credits available
 
@@ -226,11 +226,11 @@ Example:
 
 ## 💰 Cost Estimates
 
-### OpenAI API
-- Model used: GPT-4o-mini (cost-efficient)
-- Average cost per summary: **$0.01 - 0.03**
-- For a 1-hour podcast: typically **~$0.02**
-- $5 free credit = approximately 150-500 summaries
+### Anthropic Claude API
+- Model used: Claude 3.5 Sonnet (high quality)
+- Average cost per summary: **$0.03 - 0.05**
+- For a 1-hour podcast: typically **~$0.04**
+- $5 free credit = approximately 100-150 summaries
 
 ### YouTube Data API
 - **100% FREE**
@@ -293,7 +293,7 @@ This project is open source and available for personal use.
 
 Built with:
 - [Streamlit](https://streamlit.io) - Web framework
-- [OpenAI](https://openai.com) - AI summarization
+- [Anthropic Claude](https://anthropic.com) - AI summarization
 - [YouTube Transcript API](https://github.com/jdepoix/youtube-transcript-api) - Transcript extraction
 - [Google YouTube Data API](https://developers.google.com/youtube/v3) - Video search
 
