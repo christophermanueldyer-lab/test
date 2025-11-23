@@ -31,8 +31,30 @@ class TranscriptFetcher:
             data_dict contains: transcript, title, description, duration
         """
         try:
-            # Get transcript
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            # Get transcript - try multiple approaches
+            transcript_list = None
+
+            # Try to get transcript with language preferences
+            try:
+                # First try getting any available transcript
+                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'en-US', 'en-GB'])
+            except:
+                # If that fails, try to get any available transcript
+                try:
+                    transcript_list_data = YouTubeTranscriptApi.list_transcripts(video_id)
+                    # Try to find an English transcript (manual or auto-generated)
+                    try:
+                        transcript_list = transcript_list_data.find_transcript(['en', 'en-US', 'en-GB']).fetch()
+                    except:
+                        # Get the first available transcript
+                        for transcript in transcript_list_data:
+                            transcript_list = transcript.fetch()
+                            break
+                except Exception as e:
+                    raise Exception(f"Could not fetch any transcript: {str(e)}")
+
+            if not transcript_list:
+                raise Exception("No transcripts available for this video")
 
             # Combine transcript text
             transcript_text = " ".join([entry['text'] for entry in transcript_list])
