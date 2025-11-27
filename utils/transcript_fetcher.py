@@ -1,10 +1,11 @@
 """Fetch transcripts from YouTube and Spotify."""
 import os
 from typing import Optional, Dict, Tuple
-from youtube_transcript_api import YouTubeTranscriptApi
+import yt_dlp
 from googleapiclient.discovery import build
 import requests
 import re
+import json
 
 
 class TranscriptFetcher:
@@ -21,7 +22,7 @@ class TranscriptFetcher:
 
     def fetch_youtube_transcript(self, video_id: str) -> Tuple[bool, Optional[Dict], Optional[str]]:
         """
-        Fetch transcript from YouTube video.
+        Fetch transcript from YouTube video using yt-dlp.
 
         Args:
             video_id: YouTube video ID
@@ -31,67 +32,62 @@ class TranscriptFetcher:
             data_dict contains: transcript, title, description, duration
         """
         try:
-            # Get transcript - try multiple approaches
-            transcript_list = None
+            video_url = f"https://www.youtube.com/watch?v={video_id}"
 
-            # Try to get transcript with language preferences
-            try:
-                # First try getting any available transcript
-                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['en', 'en-US', 'en-GB'])
-            except:
-                # If that fails, try to get any available transcript
-                try:
-                    transcript_list_data = YouTubeTranscriptApi.list_transcripts(video_id)
-                    # Try to find an English transcript (manual or auto-generated)
-                    try:
-                        transcript_list = transcript_list_data.find_transcript(['en', 'en-US', 'en-GB']).fetch()
-                    except:
-                        # Get the first available transcript
-                        for transcript in transcript_list_data:
-                            transcript_list = transcript.fetch()
-                            break
-                except Exception as e:
-                    raise Exception(f"Could not fetch any transcript: {str(e)}")
+            # Configure yt-dlp options
+            ydl_opts = {
+                'skip_download': True,
+                'writesubtitles': True,
+                'writeautomaticsub': True,
+                'subtitleslangs': ['en'],
+                'quiet': True,
+                'no_warnings': True,
+                'extractor_args': {'youtube': {'player_client': ['default']}},
+            }
 
-            if not transcript_list:
-                raise Exception("No transcripts available for this video")
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(video_url, download=False)
 
-            # Combine transcript text
-            transcript_text = " ".join([entry['text'] for entry in transcript_list])
+                # Get metadata
+                title = info.get('title', 'Unknown Title')
+                description = info.get('description', '')
+                duration = info.get('duration', 0)
 
-            # Get video metadata using YouTube API if available
-            title = "Unknown Title"
-            description = ""
-            duration = 0
+                # Extract transcript from subtitles
+                transcript_text = None
 
-            if self.youtube_api_key:
-                try:
-                    youtube = build('youtube', 'v3', developerKey=self.youtube_api_key)
-                    response = youtube.videos().list(
-                        part='snippet,contentDetails',
-                        id=video_id
-                    ).execute()
+                # Try manual subtitles first
+                if 'subtitles' in info and 'en' in info['subtitles']:
+                    subtitles = info['subtitles']['en']
+                    for sub in subtitles:
+                        if 'url' in sub:
+                            # Fetch subtitle content
+                            response = requests.get(sub['url'], timeout=10)
+                            if response.status_code == 200:
+                                transcript_text = self._parse_subtitle_content(response.text, sub.get('ext', 'json'))
+                                break
 
-                    if response['items']:
-                        item = response['items'][0]
-                        title = item['snippet']['title']
-                        description = item['snippet']['description']
+                # Try automatic captions if manual not available
+                if not transcript_text and 'automatic_captions' in info and 'en' in info['automatic_captions']:
+                    auto_caps = info['automatic_captions']['en']
+                    for cap in auto_caps:
+                        if 'url' in cap:
+                            response = requests.get(cap['url'], timeout=10)
+                            if response.status_code == 200:
+                                transcript_text = self._parse_subtitle_content(response.text, cap.get('ext', 'json'))
+                                break
 
-                        # Parse duration (PT1H30M15S format)
-                        duration_str = item['contentDetails']['duration']
-                        duration = self._parse_duration(duration_str)
-                except Exception as e:
-                    # Fallback: continue without metadata
-                    pass
+                if not transcript_text:
+                    raise Exception("No English subtitles or captions available for this video")
 
-            return True, {
-                'transcript': transcript_text,
-                'title': title,
-                'description': description,
-                'duration': duration,
-                'platform': 'youtube',
-                'video_id': video_id
-            }, None
+                return True, {
+                    'transcript': transcript_text,
+                    'title': title,
+                    'description': description,
+                    'duration': duration,
+                    'platform': 'youtube',
+                    'video_id': video_id
+                }, None
 
         except Exception as e:
             error_msg = f"""
@@ -109,6 +105,33 @@ class TranscriptFetcher:
             • Try a different episode that has subtitles
             """
             return False, None, error_msg
+
+    def _parse_subtitle_content(self, content: str, ext: str) -> str:
+        """Parse subtitle content from various formats to plain text."""
+        try:
+            if ext == 'json3' or ext == 'json':
+                # YouTube JSON format
+                data = json.loads(content)
+                if 'events' in data:
+                    texts = []
+                    for event in data['events']:
+                        if 'segs' in event:
+                            for seg in event['segs']:
+                                if 'utf8' in seg:
+                                    texts.append(seg['utf8'])
+                    return ' '.join(texts)
+            elif ext == 'srv1' or ext == 'srv2' or ext == 'srv3':
+                # YouTube XML format
+                import xml.etree.ElementTree as ET
+                root = ET.fromstring(content)
+                texts = [elem.text for elem in root.iter('text') if elem.text]
+                return ' '.join(texts)
+            else:
+                # Try as plain text
+                return content
+        except Exception as e:
+            # If parsing fails, return raw content (better than nothing)
+            return content
 
     def fetch_spotify_metadata(self, episode_id: str) -> Tuple[bool, Optional[Dict], Optional[str]]:
         """
