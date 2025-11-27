@@ -115,7 +115,7 @@ Please summarize the following podcast episode.
 
             # Call Claude API
             response = self.client.messages.create(
-                model="claude-3-5-sonnet-latest",
+                model="claude-3-haiku-20240307",
                 max_tokens=4096,
                 temperature=0.7,
                 system=system_prompt,
