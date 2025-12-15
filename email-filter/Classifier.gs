@@ -50,24 +50,32 @@ function buildClassificationPrompt(sender, subject, preview, isRead) {
 FILTER CATEGORIES (only use these exact names):
 1. "Promotional Email" - Marketing emails, sales, deals, promotions from BRANDS/RETAILERS
 2. "Receipt" - Purchase confirmations, order receipts, transaction confirmations
-3. "Summary Email (Already Read)" - Automated digest/summary emails that have ALREADY been marked as read
+3. "Summary Email (Already Read)" - ONLY "Email Filter Summary" emails created by THIS automation script
 
 IMPORTANT RULES:
-- Only classify as "Summary Email (Already Read)" if the email IS_READ flag is true AND it appears to be an automated summary/digest
-- If an email is a summary but NOT read yet, do NOT filter it
 - Be strict about promotional emails - obvious marketing should be filtered
 - Receipts are transactional confirmations (not promotional)
 
+CRITICAL: "Summary Email (Already Read)" - VERY NARROW CRITERIA
+- ONLY classify as "Summary Email (Already Read)" if ALL of these are true:
+  1. Subject contains "Email Filter Summary"
+  2. Body contains "FILTERED EMAILS" or "NOT FILTERED EMAILS"
+  3. IS_READ flag is true
+- DO NOT classify LinkedIn digests, GitHub digests, or ANY other automated emails as "Summary Email (Already Read)"
+- Those other digest emails should either be filtered as promotional OR kept in inbox if they're content newsletters
+
 CRITICAL: DO NOT FILTER CONTENT NEWSLETTERS
 - Content newsletters (news, educational content, curated articles) should NEVER be filtered
-- Examples to NEVER filter: Morning Brew, Lenny's Newsletter, industry newsletters, educational digests
+- Examples to NEVER filter: Morning Brew, Lenny's Newsletter, LinkedIn digests with articles, industry newsletters, educational digests
 - Only filter newsletters that are purely promotional (sales, deals, product launches)
 - When in doubt about a newsletter, do NOT filter it - keep it in inbox
 
 Distinguish:
-- ✅ FILTER: "Nike - Flash Sale 40% Off" (promotional)
+- ✅ FILTER as "Promotional Email": "Nike - Flash Sale 40% Off" (promotional)
 - ❌ DO NOT FILTER: "Morning Brew - Daily business news" (content newsletter)
 - ❌ DO NOT FILTER: "Lenny's Newsletter - Product strategy insights" (content newsletter)
+- ❌ DO NOT FILTER: "LinkedIn - Weekly articles you may have missed" (content newsletter)
+- ✅ FILTER as "Summary Email (Already Read)": "Email Filter Summary - Dec 14, 2024" with body containing "FILTERED EMAILS"
 
 RATIONALE FORMAT:
 - Keep rationale extremely brief (3-7 words max)
@@ -75,7 +83,7 @@ RATIONALE FORMAT:
 - Examples:
   - "Sales subject line"
   - "Transaction confirmation"
-  - "Already read automation summary"
+  - "Email filter automation summary"
   - "Product launch promo"
 
 Respond ONLY with valid JSON in this exact format:
