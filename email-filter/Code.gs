@@ -13,23 +13,18 @@ function filterEmails() {
   try {
     Logger.log('Starting email filter process...');
 
-    // Get unread emails from inbox
-    const threads = GmailApp.search('is:unread in:inbox', 0, 50);
-    Logger.log(`Found ${threads.length} unread emails`);
-
-    if (threads.length === 0) {
-      Logger.log('No unread emails to process');
-      return;
-    }
-
     const results = {
       filtered: [],
       notFiltered: [],
       errors: []
     };
 
-    // Process each thread
-    for (const thread of threads) {
+    // Get unread emails from inbox
+    const unreadThreads = GmailApp.search('is:unread in:inbox', 0, 50);
+    Logger.log(`Found ${unreadThreads.length} unread emails`);
+
+    // Process unread emails
+    for (const thread of unreadThreads) {
       const messages = thread.getMessages();
 
       // Process only the first unread message in each thread
@@ -41,8 +36,29 @@ function filterEmails() {
       }
     }
 
-    // Send summary email
-    sendSummaryEmail(results);
+    // Also search for READ automation summary emails still in inbox
+    const readSummaryThreads = GmailApp.search('is:read in:inbox subject:"Email Filter Summary"', 0, 20);
+    Logger.log(`Found ${readSummaryThreads.length} read automation summaries in inbox`);
+
+    // Process read automation summaries
+    for (const thread of readSummaryThreads) {
+      const messages = thread.getMessages();
+
+      // Process the most recent message in the thread
+      if (messages.length > 0) {
+        const message = messages[messages.length - 1];
+        if (!message.isUnread()) {
+          processEmail(message, results, true); // Pass true to indicate this is a read summary
+        }
+      }
+    }
+
+    // Send summary email if there's anything to report
+    if (results.filtered.length > 0 || results.notFiltered.length > 0 || results.errors.length > 0) {
+      sendSummaryEmail(results);
+    } else {
+      Logger.log('No emails to process');
+    }
 
     Logger.log('Email filter process completed');
 
@@ -55,7 +71,7 @@ function filterEmails() {
 /**
  * Process a single email message
  */
-function processEmail(message, results) {
+function processEmail(message, results, forceProcess = false) {
   try {
     const sender = message.getFrom();
     const subject = message.getSubject();
@@ -63,8 +79,8 @@ function processEmail(message, results) {
 
     Logger.log(`Processing: ${sender} - ${subject}`);
 
-    // Check if this email was previously reported as "not filtered"
-    if (wasReportedAsNotFiltered(messageId)) {
+    // Check if this email was previously reported as "not filtered" (unless forcing process)
+    if (!forceProcess && wasReportedAsNotFiltered(messageId)) {
       Logger.log(`Skipping - already reported as not filtered: ${messageId}`);
       return;
     }
@@ -96,15 +112,17 @@ function processEmail(message, results) {
       Logger.log(`Filtered to ${classification.category}: ${subject}`);
 
     } else {
-      // Mark as not filtered and track it
-      markAsNotFiltered(messageId);
+      // Mark as not filtered and track it (unless forcing process)
+      if (!forceProcess) {
+        markAsNotFiltered(messageId);
 
-      results.notFiltered.push({
-        sender,
-        subject
-      });
+        results.notFiltered.push({
+          sender,
+          subject
+        });
 
-      Logger.log(`Not filtered: ${subject}`);
+        Logger.log(`Not filtered: ${subject}`);
+      }
     }
 
   } catch (error) {
