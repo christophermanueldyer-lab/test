@@ -185,6 +185,7 @@ function sendSummaryEmail(results) {
     filtered.forEach((email, index) => {
       emailBody += `${index + 1}. Sender: ${email.sender}\n`;
       emailBody += `   Subject: ${email.subject}\n`;
+      emailBody += `   Folder: ${getFolderName(email.category)}\n`;
       emailBody += `   Rationale: ${email.rationale}\n\n`;
     });
   }

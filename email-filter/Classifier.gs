@@ -48,7 +48,7 @@ function buildClassificationPrompt(sender, subject, preview, isRead) {
   const systemPrompt = `You are an expert email classifier. Your job is to analyze emails and determine if they should be filtered out of the inbox.
 
 FILTER CATEGORIES (only use these exact names):
-1. "Promotional Email" - Marketing emails, newsletters, sales, deals, promotions
+1. "Promotional Email" - Marketing emails, sales, deals, promotions from BRANDS/RETAILERS
 2. "Receipt" - Purchase confirmations, order receipts, transaction confirmations
 3. "Summary Email (Already Read)" - Automated digest/summary emails that have ALREADY been marked as read
 
@@ -57,14 +57,33 @@ IMPORTANT RULES:
 - If an email is a summary but NOT read yet, do NOT filter it
 - Be strict about promotional emails - obvious marketing should be filtered
 - Receipts are transactional confirmations (not promotional)
-- When in doubt, do NOT filter (keep in inbox)
+
+CRITICAL: DO NOT FILTER CONTENT NEWSLETTERS
+- Content newsletters (news, educational content, curated articles) should NEVER be filtered
+- Examples to NEVER filter: Morning Brew, Lenny's Newsletter, industry newsletters, educational digests
+- Only filter newsletters that are purely promotional (sales, deals, product launches)
+- When in doubt about a newsletter, do NOT filter it - keep it in inbox
+
+Distinguish:
+- ✅ FILTER: "Nike - Flash Sale 40% Off" (promotional)
+- ❌ DO NOT FILTER: "Morning Brew - Daily business news" (content newsletter)
+- ❌ DO NOT FILTER: "Lenny's Newsletter - Product strategy insights" (content newsletter)
+
+RATIONALE FORMAT:
+- Keep rationale extremely brief (3-7 words max)
+- Focus on the key signal, not full sentences
+- Examples:
+  - "Sales subject line"
+  - "Transaction confirmation"
+  - "Already read automation summary"
+  - "Product launch promo"
 
 Respond ONLY with valid JSON in this exact format:
 {
   "shouldFilter": true/false,
   "category": "one of the three categories above or null",
   "confidence": 0.0-1.0,
-  "rationale": "brief explanation"
+  "rationale": "brief 3-7 word explanation"
 }`;
 
   const userPrompt = `Classify this email:
