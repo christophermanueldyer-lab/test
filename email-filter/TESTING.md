@@ -54,7 +54,7 @@ function testFilterEmails() {
 
         Logger.log(`\n--- Testing: ${subject} ---`);
 
-        const classification = classifyEmail(sender, subject, preview, message.isRead());
+        const classification = classifyEmail(sender, subject, preview, !message.isUnread());
 
         if (classification) {
           Logger.log(`Classification: ${JSON.stringify(classification)}`);
@@ -299,7 +299,7 @@ function measurePerformance() {
     const subject = message.getSubject();
     const preview = message.getPlainBody().substring(0, 500);
 
-    classifyEmail(sender, subject, preview, message.isRead());
+    classifyEmail(sender, subject, preview, !message.isUnread());
     apiCalls++;
   });
 

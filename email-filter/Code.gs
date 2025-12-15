@@ -74,7 +74,7 @@ function processEmail(message, results) {
     const preview = body.substring(0, 500);
 
     // Classify with Claude
-    const classification = classifyEmail(sender, subject, preview, message.isRead());
+    const classification = classifyEmail(sender, subject, preview, !message.isUnread());
 
     if (!classification) {
       results.errors.push({ sender, subject, error: 'Classification failed' });
