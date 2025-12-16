@@ -82,6 +82,8 @@ def main():
         st.session_state.summary = None
     if 'podcast_title' not in st.session_state:
         st.session_state.podcast_title = None
+    if 'transcript' not in st.session_state:
+        st.session_state.transcript = None
 
     # Create two columns for input
     col1, col2 = st.columns([2, 1])
@@ -184,6 +186,7 @@ def main():
                 # Store in session state
                 st.session_state.summary = summary
                 st.session_state.podcast_title = data['title']
+                st.session_state.transcript = data['transcript']
 
                 st.success("✅ Summary generated successfully!")
 
@@ -196,12 +199,12 @@ def main():
         st.markdown("---")
 
         # Create columns for download buttons
-        col1, col2, col3 = st.columns([1, 1, 2])
+        col1, col2, col3 = st.columns([1, 1, 1])
 
         with col1:
             # Download as markdown
             st.download_button(
-                label="⬇️ Download Markdown",
+                label="⬇️ Download Summary (MD)",
                 data=st.session_state.summary,
                 file_name=f"{st.session_state.podcast_title[:50]}_summary.md",
                 mime="text/markdown"
@@ -210,11 +213,21 @@ def main():
         with col2:
             # Download as text
             st.download_button(
-                label="⬇️ Download Text",
+                label="⬇️ Download Summary (TXT)",
                 data=st.session_state.summary,
                 file_name=f"{st.session_state.podcast_title[:50]}_summary.txt",
                 mime="text/plain"
             )
+
+        with col3:
+            # Download transcript
+            if st.session_state.transcript:
+                st.download_button(
+                    label="⬇️ Download Transcript",
+                    data=st.session_state.transcript,
+                    file_name=f"{st.session_state.podcast_title[:50]}_transcript.txt",
+                    mime="text/plain"
+                )
 
         # Display the summary
         st.markdown('<div class="summary-container">', unsafe_allow_html=True)
