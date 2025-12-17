@@ -32,6 +32,8 @@ const CONFIG = {
     date: 'Date',
     description: 'Description',
     amount: 'Amount',
+    account: 'Account',
+    accountNumber: 'Account #',
     incomeOrExpense: 'Income Or Expense'  // Column K in your sheet
   },
 
@@ -132,6 +134,8 @@ function getTransactionData() {
   const dateCol = headers.indexOf(CONFIG.columns.date);
   const descCol = headers.indexOf(CONFIG.columns.description);
   const amountCol = headers.indexOf(CONFIG.columns.amount);
+  const accountCol = headers.indexOf(CONFIG.columns.account);
+  const accountNumCol = headers.indexOf(CONFIG.columns.accountNumber);
   const typeCol = headers.indexOf(CONFIG.columns.incomeOrExpense);
 
   if (dateCol === -1 || amountCol === -1 || typeCol === -1) {
@@ -145,6 +149,8 @@ function getTransactionData() {
     const date = new Date(row[dateCol]);
     const description = descCol !== -1 ? String(row[descCol]).trim() : '';
     const amount = parseFloat(row[amountCol]);
+    const account = accountCol !== -1 ? String(row[accountCol]).trim() : '';
+    const accountNumber = accountNumCol !== -1 ? String(row[accountNumCol]).trim() : '';
     const type = String(row[typeCol]).trim().toLowerCase();
 
     // Skip invalid rows
@@ -161,6 +167,8 @@ function getTransactionData() {
       date: date,
       description: description,
       amount: amount,
+      account: account,
+      accountNumber: accountNumber,
       type: type
     });
   }
@@ -231,7 +239,9 @@ function calculateFinancialSummary(transactions) {
           summary.largeExpenses.thisMonth.push({
             date: t.date,
             description: t.description,
-            amount: absAmount
+            amount: absAmount,
+            account: t.account,
+            accountNumber: t.accountNumber
           });
         }
       }
@@ -244,7 +254,9 @@ function calculateFinancialSummary(transactions) {
         summary.largeExpenses.yesterday.push({
           date: t.date,
           description: t.description,
-          amount: absAmount
+          amount: absAmount,
+          account: t.account,
+          accountNumber: t.accountNumber
         });
       }
     }
@@ -290,17 +302,25 @@ function formatEmailBody(summary) {
     // Sort by amount descending
     const sorted = expenses.sort((a, b) => b.amount - a.amount);
 
-    return sorted.map(exp => `
-      <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #F3F4F6;">
-        <div style="flex: 1;">
-          <div style="font-weight: 500; color: #374151;">${exp.description || 'No description'}</div>
-          <div style="font-size: 12px; color: #9CA3AF; margin-top: 2px;">${formatDate(exp.date)}</div>
+    return sorted.map(exp => {
+      const accountInfo = exp.account || exp.accountNumber
+        ? `${exp.account || ''}${exp.account && exp.accountNumber ? ' - ' : ''}${exp.accountNumber || ''}`
+        : '';
+
+      return `
+        <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #F3F4F6;">
+          <div style="flex: 1;">
+            <div style="font-weight: 500; color: #374151;">${exp.description || 'No description'}</div>
+            <div style="font-size: 12px; color: #9CA3AF; margin-top: 2px;">
+              ${formatDate(exp.date)}${accountInfo ? ' • ' + accountInfo : ''}
+            </div>
+          </div>
+          <div style="font-weight: 600; color: #DC2626; font-size: 16px; white-space: nowrap; margin-left: 16px;">
+            ${formatCurrency(exp.amount)}
+          </div>
         </div>
-        <div style="font-weight: 600; color: #DC2626; font-size: 16px; white-space: nowrap; margin-left: 16px;">
-          ${formatCurrency(exp.amount)}
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
   };
 
   const html = `
