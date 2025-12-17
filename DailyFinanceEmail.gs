@@ -190,15 +190,14 @@ function calculateFinancialSummary(transactions) {
   transactions.forEach(t => {
     // Use the Income Or Expense column (column K) to determine type
     const isIncome = t.type === 'income';
-    const absAmount = Math.abs(t.amount);
 
     // Year-to-Date calculations
     if (t.date >= yearStart) {
       if (isIncome) {
-        summary.ytd.income += absAmount;
+        summary.ytd.income += t.amount;
         summary.transactionCount.ytd.income++;
       } else {
-        summary.ytd.expenses += absAmount;
+        summary.ytd.expenses += t.amount;  // Sum raw amounts (negative expenses, positive refunds)
         summary.transactionCount.ytd.expenses++;
       }
     }
@@ -206,14 +205,18 @@ function calculateFinancialSummary(transactions) {
     // Month-to-Date calculations
     if (t.date >= monthStart) {
       if (isIncome) {
-        summary.mtd.income += absAmount;
+        summary.mtd.income += t.amount;
         summary.transactionCount.mtd.income++;
       } else {
-        summary.mtd.expenses += absAmount;
+        summary.mtd.expenses += t.amount;  // Sum raw amounts (negative expenses, positive refunds)
         summary.transactionCount.mtd.expenses++;
       }
     }
   });
+
+  // Convert expenses to positive for display (they're negative from summing)
+  summary.mtd.expenses = Math.abs(summary.mtd.expenses);
+  summary.ytd.expenses = Math.abs(summary.ytd.expenses);
 
   // Calculate net cash flow
   summary.mtd.netCashFlow = summary.mtd.income - summary.mtd.expenses;
