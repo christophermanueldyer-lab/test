@@ -10,20 +10,24 @@ This Google Apps Script tool automatically sends you a daily email with your fin
 
 ## 📊 Google Sheet Format
 
-Your Google Sheet should have a tab with transaction data in the following format:
+Your Google Sheet should have a tab with transaction data. The expected columns are:
 
-| Date       | Amount  | Type    | Description (Optional) |
-|------------|---------|---------|------------------------|
-| 2025-01-15 | 5000.00 | Income  | Salary                 |
-| 2025-01-16 | -150.00 | Expense | Groceries              |
-| 2025-01-17 | -45.50  | Expense | Gas                    |
-| 2025-01-18 | 200.00  | Income  | Freelance work         |
+| Date       | Description        | Amount  | Income Or Expense |
+|------------|--------------------|---------|-------------------|
+| 2025-01-15 | Salary             | 5000.00 | Income            |
+| 2025-01-16 | Groceries          | -150.00 | Expense           |
+| 2025-01-17 | Gas Station        | -45.50  | Expense           |
+| 2025-01-18 | Amazon Refund      | 25.00   | Expense           |
+| 2025-01-19 | Freelance work     | 200.00  | Income            |
 
 ### Important Notes:
 - **Date Column**: Any date format recognized by Google Sheets
-- **Amount Column**: Numeric values (can be positive for income, negative for expenses)
-- **Type Column**: Should contain "Income" or "Expense" (case insensitive)
+- **Amount Column**: Numeric values (positive for income, negative for expenses)
+- **Income Or Expense Column**: Should contain "Income" or "Expense" (case insensitive)
+- **Description Column**: Used for smart refund detection (detects keywords like "refund", "return", "reversal")
+- **Refund Handling**: Refunds are automatically classified as expenses (not income) even if the amount is positive
 - Column names can be customized in the script configuration
+- Other columns (Category, Account, etc.) are ignored but won't cause issues
 
 ## 🚀 Installation Steps
 
@@ -56,15 +60,25 @@ const CONFIG = {
 
   // Update these if your columns have different names
   columns: {
-    date: 'Date',           // Your date column name
-    amount: 'Amount',       // Your amount column name
-    type: 'Type',           // Your type column name (Income/Expense)
-    description: 'Description' // Optional
+    date: 'Date',
+    amount: 'Amount',
+    incomeOrExpense: 'Income Or Expense',
+    description: 'Description'
   },
+
+  // Keywords to detect refunds (treated as expenses, not income)
+  refundKeywords: [
+    'refund',
+    'return',
+    'reversal',
+    'credit adjustment',
+    'chargeback',
+    'reimbursement'
+  ],
 
   // Set your preferred email time (24-hour format)
   emailTime: {
-    hour: 8,    // 8 AM
+    hour: 9,    // 9 AM
     minute: 0   // 0 minutes
   }
 };
@@ -113,19 +127,24 @@ After running `setup`:
 
 ## 📧 Email Output
 
-You'll receive a beautifully formatted HTML email daily with:
+You'll receive a beautifully formatted, mobile-friendly HTML email daily with a clean table layout:
 
-### Month to Date (MTD)
-- Total Income
-- Total Expenses
-- Net Cash Flow (Income - Expenses)
-- Transaction counts
+### Email Format
+The email displays your financial data in a table with:
+- **Columns**: MTD (Month to Date) and YTD (Year to Date)
+- **Rows**:
+  - **Cash Flow** (highlighted at top) - Your net position
+  - **Income** - Total money in (with transaction count)
+  - **Expenses** - Total money out (with transaction count)
 
-### Year to Date (YTD)
-- Total Income
-- Total Expenses
-- Net Cash Flow (Income - Expenses)
-- Transaction counts
+### Color Coding
+- **Cash Flow**: Green if positive, Red if negative
+- **Income**: Always green
+- **Expenses**: Always red
+- Transaction counts displayed in small gray text under each amount
+
+### Mobile Responsive
+The table automatically adjusts for mobile devices, making it easy to check your finances on the go.
 
 ## 🎨 Customization Options
 
@@ -150,10 +169,28 @@ If your sheet uses different column names:
 columns: {
   date: 'Transaction Date',
   amount: 'Amount ($)',
-  type: 'Category',
+  incomeOrExpense: 'Type',
   description: 'Notes'
 }
 ```
+
+### Customize Refund Detection
+
+Add or remove keywords to detect refunds in the `refundKeywords` array:
+
+```javascript
+refundKeywords: [
+  'refund',
+  'return',
+  'reversal',
+  'credit adjustment',
+  'chargeback',
+  'reimbursement',
+  'cashback'  // Add your own keywords
+]
+```
+
+Any transaction with these keywords in the description will be treated as an expense, even if the amount is positive.
 
 ### Multiple Recipients
 
@@ -185,8 +222,13 @@ MailApp.sendEmail({
 ### No data in email / amounts are $0.00
 - Verify your transactions have valid dates
 - Check that amounts are numeric (not text)
-- Ensure the Type column contains "Income" or "Expense"
+- Ensure the "Income Or Expense" column contains "Income" or "Expense"
 - Check the execution log for error messages
+
+### Refunds showing as income
+- Check that your description contains refund keywords (refund, return, reversal, etc.)
+- Or manually set the "Income Or Expense" column to "Expense" for refund transactions
+- You can customize the `refundKeywords` array to add your own keywords
 
 ### Authorization errors
 - Go to **Triggers** and delete all existing triggers
@@ -201,16 +243,30 @@ MailApp.sendEmail({
 
 ## 📊 Understanding Income vs Expense Detection
 
-The script determines whether a transaction is income or expense using these rules:
+The script uses an intelligent, multi-layered approach to determine whether a transaction is income or expense:
 
-1. **Type Column**: If "income" → Income, if "expense" → Expense
-2. **Amount Sign**: Positive amounts → Income, Negative amounts → Expense
-3. **Both considered**: The script uses both the Type column and amount to categorize
+### Detection Priority (in order):
+
+1. **Refund Detection (First)**: If the description contains refund keywords → Always treated as Expense
+   - Keywords: refund, return, reversal, credit adjustment, chargeback, reimbursement
+   - This prevents refunds from incorrectly showing as income
+
+2. **Income Or Expense Column**: If available, uses this column to classify the transaction
+   - "Income" → Income
+   - "Expense" → Expense
+
+3. **Amount Sign (Fallback)**: If no type column exists
+   - Positive amounts → Income
+   - Negative amounts → Expense
+
+### Why This Matters:
+Without refund detection, a $50 refund (positive amount) would incorrectly count as income. With refund detection, it's properly categorized as an expense being reversed.
 
 ### Best Practices:
-- Use consistent Type values: "Income" and "Expense"
-- Or use positive amounts for income, negative for expenses
-- The script handles both approaches
+- Fill out the "Income Or Expense" column for all transactions
+- Use consistent values: "Income" and "Expense"
+- Keep descriptions clear - they help with refund detection
+- Review your refund keywords and customize if needed
 
 ## 🔐 Privacy & Security
 

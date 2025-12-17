@@ -26,17 +26,27 @@ const CONFIG = {
   // Your email address to receive the daily update
   recipientEmail: 'your-email@gmail.com',
 
-  // Column names in your Google Sheet (update if your columns are named differently)
+  // Column names in your Google Sheet
   columns: {
-    date: 'Date',           // Column with transaction date
-    amount: 'Amount',       // Column with transaction amount
-    type: 'Type',           // Column indicating 'Income' or 'Expense'
-    description: 'Description' // Optional: transaction description
+    date: 'Date',
+    amount: 'Amount',
+    incomeOrExpense: 'Income Or Expense',
+    description: 'Description'
   },
+
+  // Keywords to detect refunds (which should be treated as expenses, not income)
+  refundKeywords: [
+    'refund',
+    'return',
+    'reversal',
+    'credit adjustment',
+    'chargeback',
+    'reimbursement'
+  ],
 
   // Time to send daily email (24-hour format)
   emailTime: {
-    hour: 8,    // 8 AM
+    hour: 9,    // 9 AM
     minute: 0   // 0 minutes
   }
 };
@@ -130,10 +140,11 @@ function getTransactionData() {
   const headers = values[0];
   const dateCol = headers.indexOf(CONFIG.columns.date);
   const amountCol = headers.indexOf(CONFIG.columns.amount);
-  const typeCol = headers.indexOf(CONFIG.columns.type);
+  const typeCol = headers.indexOf(CONFIG.columns.incomeOrExpense);
+  const descCol = headers.indexOf(CONFIG.columns.description);
 
-  if (dateCol === -1 || amountCol === -1 || typeCol === -1) {
-    throw new Error('Required columns not found. Please check CONFIG.columns settings');
+  if (dateCol === -1 || amountCol === -1) {
+    throw new Error('Required columns (Date, Amount) not found. Please check CONFIG.columns settings');
   }
 
   // Parse transactions (skip header row)
@@ -142,7 +153,8 @@ function getTransactionData() {
     const row = values[i];
     const date = new Date(row[dateCol]);
     const amount = parseFloat(row[amountCol]);
-    const type = String(row[typeCol]).trim().toLowerCase();
+    const type = typeCol !== -1 ? String(row[typeCol]).trim().toLowerCase() : '';
+    const description = descCol !== -1 ? String(row[descCol]).trim().toLowerCase() : '';
 
     // Skip invalid rows
     if (isNaN(date.getTime()) || isNaN(amount)) {
@@ -153,12 +165,19 @@ function getTransactionData() {
       date: date,
       amount: amount,
       type: type,
-      isIncome: type === 'income' || amount > 0,
-      isExpense: type === 'expense' || amount < 0
+      description: description
     });
   }
 
   return transactions;
+}
+
+/**
+ * Detect if a transaction is a refund based on description
+ */
+function isRefund(description) {
+  const lowerDesc = description.toLowerCase();
+  return CONFIG.refundKeywords.some(keyword => lowerDesc.includes(keyword));
 }
 
 /**
@@ -185,10 +204,22 @@ function calculateFinancialSummary(transactions) {
   };
 
   transactions.forEach(t => {
-    const absAmount = Math.abs(t.amount);
+    // Determine if income or expense with improved refund detection
+    let isIncome;
 
-    // Determine if income or expense
-    const isIncome = t.isIncome || (t.type.includes('income') || t.type.includes('deposit'));
+    // Check if it's a refund first (overrides positive amount)
+    if (isRefund(t.description)) {
+      // Refunds are expenses (returning money) even if positive amount
+      isIncome = false;
+    } else if (t.type) {
+      // Use the Income Or Expense column if available
+      isIncome = t.type.includes('income');
+    } else {
+      // Fallback to amount sign
+      isIncome = t.amount > 0;
+    }
+
+    const absAmount = Math.abs(t.amount);
 
     // Year-to-Date calculations
     if (t.date >= yearStart) {
@@ -221,227 +252,201 @@ function calculateFinancialSummary(transactions) {
 }
 
 /**
- * Format the email body with financial summary
+ * Format the email body with financial summary as a mobile-friendly table
  */
 function formatEmailBody(summary) {
   const now = new Date();
   const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'EEEE, MMMM dd, yyyy');
-  const monthName = Utilities.formatDate(now, Session.getScriptTimeZone(), 'MMMM yyyy');
-  const yearName = now.getFullYear();
 
   const formatCurrency = (amount) => {
     return '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };
 
-  const getColorStyle = (amount) => {
-    if (amount > 0) return 'color: #059669; font-weight: bold;'; // Green
-    if (amount < 0) return 'color: #DC2626; font-weight: bold;'; // Red
-    return 'color: #6B7280;'; // Gray
+  const getColor = (amount) => {
+    if (amount > 0) return '#059669'; // Green
+    if (amount < 0) return '#DC2626'; // Red
+    return '#6B7280'; // Gray
   };
 
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
         body {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
           line-height: 1.6;
           color: #1F2937;
+          margin: 0;
+          padding: 0;
+          background-color: #F3F4F6;
+        }
+        .container {
           max-width: 600px;
           margin: 0 auto;
-          padding: 20px;
+          background-color: #FFFFFF;
         }
         .header {
           background: linear-gradient(135deg, #667EEA 0%, #764BA2 100%);
           color: white;
-          padding: 30px 20px;
-          border-radius: 12px 12px 0 0;
+          padding: 24px 16px;
           text-align: center;
         }
         .header h1 {
           margin: 0;
-          font-size: 28px;
+          font-size: 24px;
+          font-weight: 600;
         }
         .header p {
-          margin: 5px 0 0 0;
-          opacity: 0.9;
-          font-size: 14px;
+          margin: 8px 0 0 0;
+          opacity: 0.95;
+          font-size: 13px;
         }
         .content {
-          background: #FFFFFF;
-          padding: 30px 20px;
-          border: 1px solid #E5E7EB;
-          border-top: none;
+          padding: 24px 16px;
         }
-        .section {
-          margin-bottom: 35px;
-        }
-        .section:last-child {
-          margin-bottom: 0;
-        }
-        .section-title {
-          font-size: 18px;
-          font-weight: 600;
-          color: #374151;
-          margin-bottom: 15px;
-          padding-bottom: 8px;
-          border-bottom: 2px solid #E5E7EB;
-        }
-        .metric-grid {
-          display: table;
+        .finance-table {
           width: 100%;
           border-collapse: collapse;
+          margin: 0;
+          background: #FFFFFF;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+          border-radius: 8px;
+          overflow: hidden;
         }
-        .metric-row {
-          display: table-row;
-        }
-        .metric-label {
-          display: table-cell;
-          padding: 12px 0;
-          font-size: 14px;
+        .finance-table th {
+          background-color: #F9FAFB;
+          padding: 16px 12px;
+          text-align: left;
+          font-weight: 600;
+          font-size: 13px;
           color: #6B7280;
-          width: 50%;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          border-bottom: 2px solid #E5E7EB;
         }
-        .metric-value {
-          display: table-cell;
-          padding: 12px 0;
-          text-align: right;
-          font-size: 18px;
+        .finance-table td {
+          padding: 16px 12px;
+          border-bottom: 1px solid #F3F4F6;
+          font-size: 15px;
+        }
+        .finance-table tr:last-child td {
+          border-bottom: none;
+        }
+        .row-label {
+          font-weight: 500;
+          color: #374151;
+        }
+        .cash-flow-row {
+          background-color: #F0F9FF;
           font-weight: 600;
         }
-        .divider {
-          height: 1px;
-          background: #E5E7EB;
-          margin: 15px 0;
+        .cash-flow-row td {
+          padding: 18px 12px;
+          font-size: 16px;
         }
-        .net-cash-flow {
-          background: #F9FAFB;
-          padding: 15px;
-          border-radius: 8px;
-          margin-top: 15px;
+        .amount {
+          text-align: right;
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+        }
+        .transaction-count {
+          font-size: 11px;
+          color: #9CA3AF;
+          font-weight: 400;
+          display: block;
+          margin-top: 4px;
         }
         .footer {
           background: #F9FAFB;
-          padding: 20px;
-          border-radius: 0 0 12px 12px;
-          border: 1px solid #E5E7EB;
-          border-top: none;
+          padding: 16px;
           text-align: center;
-          font-size: 12px;
+          font-size: 11px;
           color: #6B7280;
+          border-top: 1px solid #E5E7EB;
+        }
+        @media only screen and (max-width: 480px) {
+          .header h1 {
+            font-size: 20px;
+          }
+          .header p {
+            font-size: 12px;
+          }
+          .content {
+            padding: 16px 12px;
+          }
+          .finance-table th,
+          .finance-table td {
+            padding: 12px 8px;
+            font-size: 14px;
+          }
+          .cash-flow-row td {
+            padding: 14px 8px;
+            font-size: 15px;
+          }
+          .transaction-count {
+            font-size: 10px;
+          }
         }
       </style>
     </head>
     <body>
-      <div class="header">
-        <h1>💰 Daily Finance Update</h1>
-        <p>${dateStr}</p>
-      </div>
+      <div class="container">
+        <div class="header">
+          <h1>💰 Daily Finance Update</h1>
+          <p>${dateStr}</p>
+        </div>
 
-      <div class="content">
-        <!-- MONTH TO DATE -->
-        <div class="section">
-          <div class="section-title">📊 Month to Date (${monthName})</div>
-          <div class="metric-grid">
-            <div class="metric-row">
-              <div class="metric-label">Income</div>
-              <div class="metric-value" style="color: #059669;">
-                ${formatCurrency(summary.mtd.income)}
-              </div>
-            </div>
-            <div class="metric-row">
-              <div class="metric-label">
-                <span style="color: #9CA3AF; font-size: 12px;">
-                  (${summary.transactionCount.mtd.income} transactions)
-                </span>
-              </div>
-              <div class="metric-value"></div>
-            </div>
-            <div class="metric-row">
-              <div class="metric-label">Expenses</div>
-              <div class="metric-value" style="color: #DC2626;">
-                ${formatCurrency(summary.mtd.expenses)}
-              </div>
-            </div>
-            <div class="metric-row">
-              <div class="metric-label">
-                <span style="color: #9CA3AF; font-size: 12px;">
-                  (${summary.transactionCount.mtd.expenses} transactions)
-                </span>
-              </div>
-              <div class="metric-value"></div>
-            </div>
-          </div>
-
-          <div class="net-cash-flow">
-            <div class="metric-grid">
-              <div class="metric-row">
-                <div class="metric-label" style="font-weight: 600; color: #374151;">
-                  Net Cash Flow
-                </div>
-                <div class="metric-value" style="${getColorStyle(summary.mtd.netCashFlow)} font-size: 22px;">
+        <div class="content">
+          <table class="finance-table">
+            <thead>
+              <tr>
+                <th style="width: 35%;">&nbsp;</th>
+                <th style="width: 32.5%; text-align: right;">MTD</th>
+                <th style="width: 32.5%; text-align: right;">YTD</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="cash-flow-row">
+                <td class="row-label">Cash Flow</td>
+                <td class="amount" style="color: ${getColor(summary.mtd.netCashFlow)};">
                   ${formatCurrency(summary.mtd.netCashFlow)}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <!-- YEAR TO DATE -->
-        <div class="section">
-          <div class="section-title">📈 Year to Date (${yearName})</div>
-          <div class="metric-grid">
-            <div class="metric-row">
-              <div class="metric-label">Income</div>
-              <div class="metric-value" style="color: #059669;">
-                ${formatCurrency(summary.ytd.income)}
-              </div>
-            </div>
-            <div class="metric-row">
-              <div class="metric-label">
-                <span style="color: #9CA3AF; font-size: 12px;">
-                  (${summary.transactionCount.ytd.income} transactions)
-                </span>
-              </div>
-              <div class="metric-value"></div>
-            </div>
-            <div class="metric-row">
-              <div class="metric-label">Expenses</div>
-              <div class="metric-value" style="color: #DC2626;">
-                ${formatCurrency(summary.ytd.expenses)}
-              </div>
-            </div>
-            <div class="metric-row">
-              <div class="metric-label">
-                <span style="color: #9CA3AF; font-size: 12px;">
-                  (${summary.transactionCount.ytd.expenses} transactions)
-                </span>
-              </div>
-              <div class="metric-value"></div>
-            </div>
-          </div>
-
-          <div class="net-cash-flow">
-            <div class="metric-grid">
-              <div class="metric-row">
-                <div class="metric-label" style="font-weight: 600; color: #374151;">
-                  Net Cash Flow
-                </div>
-                <div class="metric-value" style="${getColorStyle(summary.ytd.netCashFlow)} font-size: 22px;">
+                </td>
+                <td class="amount" style="color: ${getColor(summary.ytd.netCashFlow)};">
                   ${formatCurrency(summary.ytd.netCashFlow)}
-                </div>
-              </div>
-            </div>
-          </div>
+                </td>
+              </tr>
+              <tr>
+                <td class="row-label">Income</td>
+                <td class="amount" style="color: #059669;">
+                  ${formatCurrency(summary.mtd.income)}
+                  <span class="transaction-count">${summary.transactionCount.mtd.income} transactions</span>
+                </td>
+                <td class="amount" style="color: #059669;">
+                  ${formatCurrency(summary.ytd.income)}
+                  <span class="transaction-count">${summary.transactionCount.ytd.income} transactions</span>
+                </td>
+              </tr>
+              <tr>
+                <td class="row-label">Expenses</td>
+                <td class="amount" style="color: #DC2626;">
+                  ${formatCurrency(summary.mtd.expenses)}
+                  <span class="transaction-count">${summary.transactionCount.mtd.expenses} transactions</span>
+                </td>
+                <td class="amount" style="color: #DC2626;">
+                  ${formatCurrency(summary.ytd.expenses)}
+                  <span class="transaction-count">${summary.transactionCount.ytd.expenses} transactions</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </div>
 
-      <div class="footer">
-        <p>This is an automated daily finance summary from your Google Sheets transaction data.</p>
-        <p style="margin-top: 5px;">Generated on ${dateStr}</p>
+        <div class="footer">
+          <p>Automated daily finance summary from your Google Sheets transaction data</p>
+          <p style="margin-top: 4px;">Generated ${dateStr}</p>
+        </div>
       </div>
     </body>
     </html>
