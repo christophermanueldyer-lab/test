@@ -27,22 +27,12 @@ const CONFIG = {
   recipientEmail: 'your-email@gmail.com',
 
   // Column names in your Google Sheet
+  // Note: Column K should contain either "Income" or "Expense"
   columns: {
     date: 'Date',
     amount: 'Amount',
-    incomeOrExpense: 'Income Or Expense',
-    description: 'Description'
+    incomeOrExpense: 'Income Or Expense'  // Column K in your sheet
   },
-
-  // Keywords to detect refunds (which should be treated as expenses, not income)
-  refundKeywords: [
-    'refund',
-    'return',
-    'reversal',
-    'credit adjustment',
-    'chargeback',
-    'reimbursement'
-  ],
 
   // Time to send daily email (24-hour format)
   emailTime: {
@@ -141,10 +131,9 @@ function getTransactionData() {
   const dateCol = headers.indexOf(CONFIG.columns.date);
   const amountCol = headers.indexOf(CONFIG.columns.amount);
   const typeCol = headers.indexOf(CONFIG.columns.incomeOrExpense);
-  const descCol = headers.indexOf(CONFIG.columns.description);
 
-  if (dateCol === -1 || amountCol === -1) {
-    throw new Error('Required columns (Date, Amount) not found. Please check CONFIG.columns settings');
+  if (dateCol === -1 || amountCol === -1 || typeCol === -1) {
+    throw new Error('Required columns (Date, Amount, Income Or Expense) not found. Please check CONFIG.columns settings');
   }
 
   // Parse transactions (skip header row)
@@ -153,31 +142,26 @@ function getTransactionData() {
     const row = values[i];
     const date = new Date(row[dateCol]);
     const amount = parseFloat(row[amountCol]);
-    const type = typeCol !== -1 ? String(row[typeCol]).trim().toLowerCase() : '';
-    const description = descCol !== -1 ? String(row[descCol]).trim().toLowerCase() : '';
+    const type = String(row[typeCol]).trim().toLowerCase();
 
     // Skip invalid rows
     if (isNaN(date.getTime()) || isNaN(amount)) {
       continue;
     }
 
+    // Skip rows without a valid type
+    if (!type || (type !== 'income' && type !== 'expense')) {
+      continue;
+    }
+
     transactions.push({
       date: date,
       amount: amount,
-      type: type,
-      description: description
+      type: type
     });
   }
 
   return transactions;
-}
-
-/**
- * Detect if a transaction is a refund based on description
- */
-function isRefund(description) {
-  const lowerDesc = description.toLowerCase();
-  return CONFIG.refundKeywords.some(keyword => lowerDesc.includes(keyword));
 }
 
 /**
@@ -204,21 +188,8 @@ function calculateFinancialSummary(transactions) {
   };
 
   transactions.forEach(t => {
-    // Determine if income or expense with improved refund detection
-    let isIncome;
-
-    // Check if it's a refund first (overrides positive amount)
-    if (isRefund(t.description)) {
-      // Refunds are expenses (returning money) even if positive amount
-      isIncome = false;
-    } else if (t.type) {
-      // Use the Income Or Expense column if available
-      isIncome = t.type.includes('income');
-    } else {
-      // Fallback to amount sign
-      isIncome = t.amount > 0;
-    }
-
+    // Use the Income Or Expense column (column K) to determine type
+    const isIncome = t.type === 'income';
     const absAmount = Math.abs(t.amount);
 
     // Year-to-Date calculations

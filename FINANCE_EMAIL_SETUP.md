@@ -10,24 +10,22 @@ This Google Apps Script tool automatically sends you a daily email with your fin
 
 ## 📊 Google Sheet Format
 
-Your Google Sheet should have a tab with transaction data. The expected columns are:
+Your Google Sheet should have a tab with transaction data. The required columns are:
 
-| Date       | Description        | Amount  | Income Or Expense |
-|------------|--------------------|---------|-------------------|
-| 2025-01-15 | Salary             | 5000.00 | Income            |
-| 2025-01-16 | Groceries          | -150.00 | Expense           |
-| 2025-01-17 | Gas Station        | -45.50  | Expense           |
-| 2025-01-18 | Amazon Refund      | 25.00   | Expense           |
-| 2025-01-19 | Freelance work     | 200.00  | Income            |
+| Date       | Amount  | ... | Income Or Expense (Column K) |
+|------------|---------|-----|------------------------------|
+| 2025-01-15 | 5000.00 | ... | Income                       |
+| 2025-01-16 | -150.00 | ... | Expense                      |
+| 2025-01-17 | -45.50  | ... | Expense                      |
+| 2025-01-18 | 25.00   | ... | Expense                      |
+| 2025-01-19 | 200.00  | ... | Income                       |
 
 ### Important Notes:
 - **Date Column**: Any date format recognized by Google Sheets
-- **Amount Column**: Numeric values (positive for income, negative for expenses)
-- **Income Or Expense Column**: Should contain "Income" or "Expense" (case insensitive)
-- **Description Column**: Used for smart refund detection (detects keywords like "refund", "return", "reversal")
-- **Refund Handling**: Refunds are automatically classified as expenses (not income) even if the amount is positive
+- **Amount Column**: Numeric values (can be positive or negative)
+- **Income Or Expense Column (Column K)**: Must contain either "Income" or "Expense" (case insensitive)
+- All other columns (Category, Description, Account, etc.) are ignored
 - Column names can be customized in the script configuration
-- Other columns (Category, Account, etc.) are ignored but won't cause issues
 
 ## 🚀 Installation Steps
 
@@ -58,23 +56,13 @@ const CONFIG = {
   // REQUIRED: Update with your email address
   recipientEmail: 'your-email@gmail.com',
 
-  // Update these if your columns have different names
+  // Column names in your Google Sheet
+  // Note: Column K should contain either "Income" or "Expense"
   columns: {
     date: 'Date',
     amount: 'Amount',
-    incomeOrExpense: 'Income Or Expense',
-    description: 'Description'
+    incomeOrExpense: 'Income Or Expense'  // Column K in your sheet
   },
-
-  // Keywords to detect refunds (treated as expenses, not income)
-  refundKeywords: [
-    'refund',
-    'return',
-    'reversal',
-    'credit adjustment',
-    'chargeback',
-    'reimbursement'
-  ],
 
   // Set your preferred email time (24-hour format)
   emailTime: {
@@ -163,34 +151,15 @@ Then run the `setup` function again to update the trigger.
 
 ### Change Column Names
 
-If your sheet uses different column names:
+If your sheet uses different column names, update the CONFIG:
 
 ```javascript
 columns: {
   date: 'Transaction Date',
   amount: 'Amount ($)',
-  incomeOrExpense: 'Type',
-  description: 'Notes'
+  incomeOrExpense: 'Type'  // Whatever your column K is named
 }
 ```
-
-### Customize Refund Detection
-
-Add or remove keywords to detect refunds in the `refundKeywords` array:
-
-```javascript
-refundKeywords: [
-  'refund',
-  'return',
-  'reversal',
-  'credit adjustment',
-  'chargeback',
-  'reimbursement',
-  'cashback'  // Add your own keywords
-]
-```
-
-Any transaction with these keywords in the description will be treated as an expense, even if the amount is positive.
 
 ### Multiple Recipients
 
@@ -222,13 +191,9 @@ MailApp.sendEmail({
 ### No data in email / amounts are $0.00
 - Verify your transactions have valid dates
 - Check that amounts are numeric (not text)
-- Ensure the "Income Or Expense" column contains "Income" or "Expense"
+- Ensure column K ("Income Or Expense") contains exactly "Income" or "Expense" for each transaction
+- Transactions with empty or invalid values in column K will be skipped
 - Check the execution log for error messages
-
-### Refunds showing as income
-- Check that your description contains refund keywords (refund, return, reversal, etc.)
-- Or manually set the "Income Or Expense" column to "Expense" for refund transactions
-- You can customize the `refundKeywords` array to add your own keywords
 
 ### Authorization errors
 - Go to **Triggers** and delete all existing triggers
@@ -243,30 +208,18 @@ MailApp.sendEmail({
 
 ## 📊 Understanding Income vs Expense Detection
 
-The script uses an intelligent, multi-layered approach to determine whether a transaction is income or expense:
+The script uses a simple, straightforward approach:
 
-### Detection Priority (in order):
-
-1. **Refund Detection (First)**: If the description contains refund keywords → Always treated as Expense
-   - Keywords: refund, return, reversal, credit adjustment, chargeback, reimbursement
-   - This prevents refunds from incorrectly showing as income
-
-2. **Income Or Expense Column**: If available, uses this column to classify the transaction
-   - "Income" → Income
-   - "Expense" → Expense
-
-3. **Amount Sign (Fallback)**: If no type column exists
-   - Positive amounts → Income
-   - Negative amounts → Expense
-
-### Why This Matters:
-Without refund detection, a $50 refund (positive amount) would incorrectly count as income. With refund detection, it's properly categorized as an expense being reversed.
+**Column K ("Income Or Expense") determines the transaction type:**
+- If the value is "Income" → Counted as income
+- If the value is "Expense" → Counted as expense
+- Any other value or empty cell → Transaction is skipped
 
 ### Best Practices:
-- Fill out the "Income Or Expense" column for all transactions
-- Use consistent values: "Income" and "Expense"
-- Keep descriptions clear - they help with refund detection
-- Review your refund keywords and customize if needed
+- Ensure every transaction has either "Income" or "Expense" in column K
+- Values are case-insensitive ("income" and "INCOME" both work)
+- Keep your column K values consistent
+- The amount value (positive or negative) doesn't affect classification - only column K matters
 
 ## 🔐 Privacy & Security
 
