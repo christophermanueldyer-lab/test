@@ -214,13 +214,13 @@ function calculateFinancialSummary(transactions) {
     }
   });
 
-  // Convert expenses to positive for display (they're negative from summing)
+  // Calculate net cash flow (expenses are negative, so adding works correctly)
+  summary.mtd.netCashFlow = summary.mtd.income + summary.mtd.expenses;
+  summary.ytd.netCashFlow = summary.ytd.income + summary.ytd.expenses;
+
+  // Convert expenses to positive for display only
   summary.mtd.expenses = Math.abs(summary.mtd.expenses);
   summary.ytd.expenses = Math.abs(summary.ytd.expenses);
-
-  // Calculate net cash flow
-  summary.mtd.netCashFlow = summary.mtd.income - summary.mtd.expenses;
-  summary.ytd.netCashFlow = summary.ytd.income - summary.ytd.expenses;
 
   return summary;
 }
