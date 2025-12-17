@@ -30,6 +30,7 @@ const CONFIG = {
   // Note: Column K should contain either "Income" or "Expense"
   columns: {
     date: 'Date',
+    description: 'Description',
     amount: 'Amount',
     incomeOrExpense: 'Income Or Expense'  // Column K in your sheet
   },
@@ -129,6 +130,7 @@ function getTransactionData() {
   // Get header row to find column indices
   const headers = values[0];
   const dateCol = headers.indexOf(CONFIG.columns.date);
+  const descCol = headers.indexOf(CONFIG.columns.description);
   const amountCol = headers.indexOf(CONFIG.columns.amount);
   const typeCol = headers.indexOf(CONFIG.columns.incomeOrExpense);
 
@@ -141,6 +143,7 @@ function getTransactionData() {
   for (let i = 1; i < values.length; i++) {
     const row = values[i];
     const date = new Date(row[dateCol]);
+    const description = descCol !== -1 ? String(row[descCol]).trim() : '';
     const amount = parseFloat(row[amountCol]);
     const type = String(row[typeCol]).trim().toLowerCase();
 
@@ -156,6 +159,7 @@ function getTransactionData() {
 
     transactions.push({
       date: date,
+      description: description,
       amount: amount,
       type: type
     });
@@ -171,6 +175,7 @@ function calculateFinancialSummary(transactions) {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
+  const currentDay = now.getDate();
 
   // Start of current month
   const monthStart = new Date(currentYear, currentMonth, 1);
@@ -178,12 +183,21 @@ function calculateFinancialSummary(transactions) {
   // Start of current year
   const yearStart = new Date(currentYear, 0, 1);
 
+  // Yesterday (calendar day, not last 24 hours)
+  const yesterday = new Date(currentYear, currentMonth, currentDay - 1);
+  const yesterdayStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+  const yesterdayEnd = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate() + 1);
+
   const summary = {
     mtd: { income: 0, expenses: 0, netCashFlow: 0 },
     ytd: { income: 0, expenses: 0, netCashFlow: 0 },
     transactionCount: {
       mtd: { income: 0, expenses: 0 },
       ytd: { income: 0, expenses: 0 }
+    },
+    largeExpenses: {
+      yesterday: [],  // Expenses > $100 from yesterday
+      thisMonth: []   // Expenses > $1000 from this month
     }
   };
 
@@ -210,6 +224,28 @@ function calculateFinancialSummary(transactions) {
       } else {
         summary.mtd.expenses += t.amount;  // Sum raw amounts (negative expenses, positive refunds)
         summary.transactionCount.mtd.expenses++;
+
+        // Track large expenses from this month (> $1000)
+        const absAmount = Math.abs(t.amount);
+        if (absAmount > 1000) {
+          summary.largeExpenses.thisMonth.push({
+            date: t.date,
+            description: t.description,
+            amount: absAmount
+          });
+        }
+      }
+    }
+
+    // Track large expenses from yesterday (> $100)
+    if (!isIncome && t.date >= yesterdayStart && t.date < yesterdayEnd) {
+      const absAmount = Math.abs(t.amount);
+      if (absAmount > 100) {
+        summary.largeExpenses.yesterday.push({
+          date: t.date,
+          description: t.description,
+          amount: absAmount
+        });
       }
     }
   });
@@ -240,6 +276,31 @@ function formatEmailBody(summary) {
     if (amount > 0) return '#059669'; // Green
     if (amount < 0) return '#DC2626'; // Red
     return '#6B7280'; // Gray
+  };
+
+  const formatDate = (date) => {
+    return Utilities.formatDate(date, Session.getScriptTimeZone(), 'MMM dd');
+  };
+
+  const formatLargeExpensesList = (expenses) => {
+    if (expenses.length === 0) {
+      return '<p style="color: #9CA3AF; font-style: italic; margin: 0;">None</p>';
+    }
+
+    // Sort by amount descending
+    const sorted = expenses.sort((a, b) => b.amount - a.amount);
+
+    return sorted.map(exp => `
+      <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #F3F4F6;">
+        <div style="flex: 1;">
+          <div style="font-weight: 500; color: #374151;">${exp.description || 'No description'}</div>
+          <div style="font-size: 12px; color: #9CA3AF; margin-top: 2px;">${formatDate(exp.date)}</div>
+        </div>
+        <div style="font-weight: 600; color: #DC2626; font-size: 16px; white-space: nowrap; margin-left: 16px;">
+          ${formatCurrency(exp.amount)}
+        </div>
+      </div>
+    `).join('');
   };
 
   const html = `
@@ -332,6 +393,22 @@ function formatEmailBody(summary) {
           display: block;
           margin-top: 4px;
         }
+        .large-expenses-section {
+          padding: 24px 16px;
+          border-top: 1px solid #E5E7EB;
+        }
+        .section-title {
+          font-size: 16px;
+          font-weight: 600;
+          color: #374151;
+          margin: 0 0 16px 0;
+        }
+        .expense-list {
+          background: #FFFFFF;
+          border: 1px solid #E5E7EB;
+          border-radius: 8px;
+          padding: 0 12px;
+        }
         .footer {
           background: #F9FAFB;
           padding: 16px;
@@ -415,6 +492,22 @@ function formatEmailBody(summary) {
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- Large Expenses from Yesterday -->
+        <div class="large-expenses-section">
+          <h2 class="section-title">💸 Large Expenses from Yesterday (> $100)</h2>
+          <div class="expense-list">
+            ${formatLargeExpensesList(summary.largeExpenses.yesterday)}
+          </div>
+        </div>
+
+        <!-- Large Expenses from This Month -->
+        <div class="large-expenses-section">
+          <h2 class="section-title">🔴 Large Expenses This Month (> $1,000)</h2>
+          <div class="expense-list">
+            ${formatLargeExpensesList(summary.largeExpenses.thisMonth)}
+          </div>
         </div>
 
         <div class="footer">
