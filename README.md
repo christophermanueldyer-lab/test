@@ -1,304 +1,93 @@
-# 🎙️ Podcast Summarizer
+# Gmail Email Filter with Claude AI
 
-An AI-powered web application that automatically generates summaries of podcasts from YouTube and Spotify URLs. Get key takeaways, detailed breakdowns, and important quotes from your favorite podcasts in seconds.
+An intelligent email filtering system that automatically organizes your Gmail inbox using Claude AI. No more rules-based filtering - let AI understand your emails and categorize them intelligently.
+
+## 📁 Project Structure
+
+This repository contains a Google Apps Script project for automated email filtering.
+
+All source files are in the `email-filter/` directory:
+
+```
+email-filter/
+├── Code.gs              # Main Gmail integration & orchestration
+├── Classifier.gs        # Claude API email classification
+├── EmailTracker.gs      # Tracks "not filtered" emails
+├── HelperFunctions.gs   # Utility functions
+├── appsscript.json      # Apps Script manifest
+├── README.md            # Complete setup guide
+├── QUICKSTART.md        # 10-minute setup guide
+├── TESTING.md           # Testing procedures
+└── EXAMPLE_OUTPUT.md    # Sample email outputs
+```
 
 ## ✨ Features
 
-- **Multi-Platform Support**: Works with YouTube and Spotify podcast URLs
-- **Automatic Transcript Extraction**: Fetches transcripts from YouTube (with Spotify fallback)
-- **8 Summary Styles**: Choose from different focus areas (Business, Politics, Fitness, etc.)
-- **Speaker Identification**: Automatically identifies and attributes quotes to speakers
-- **Beautiful Web Interface**: Easy-to-use Streamlit interface
-- **Download Summaries**: Export as Markdown or Text files
-- **Customizable Prompts**: Edit summary styles via `config/prompts.json`
+- **AI-Powered Classification** - Uses Claude 3.5 Haiku for fast, accurate email categorization
+- **Automatic Filtering** - Filters promotional emails, receipts, and automation summaries
+- **Smart Tracking** - Avoids reporting the same "not filtered" emails multiple times
+- **Daily Summaries** - Sends you a clean summary of what was filtered
+- **Self-Cleaning** - Auto-files its own summary emails after you read them
+- **Cost-Effective** - ~$0.015/day for 50 emails (~1.5 cents!)
+- **Cloud-Based** - Runs entirely in Google Apps Script (no server needed!)
 
-## 🎯 Summary Styles
+## 🚀 Quick Start
 
-1. **Business Strategy** - Market insights, business models, revenue strategies
-2. **Leadership & Management** - Team building, decision-making, organizational culture
-3. **Political Analysis** - Policy positions, political arguments, societal implications
-4. **Cultural Commentary** - Cultural trends, social issues, philosophical perspectives
-5. **Health & Fitness** - Exercise techniques, nutrition advice, wellness practices
-6. **Science & Research** - Studies cited, research findings, evidence-based conclusions
-7. **Personal Development** - Self-improvement, habits, mindset, motivation
-8. **Quick Overview** - Balanced summary of all major points
+See `email-filter/QUICKSTART.md` for a 10-minute setup guide.
 
-## 📋 Prerequisites
+**TL;DR:**
+1. Create a Google Apps Script project
+2. Copy the 4 `.gs` files and `appsscript.json`
+3. Add your Anthropic API key to Script Properties
+4. Run `setupTriggers()` function
+5. Done! Runs automatically every hour from 7am-4pm Pacific
 
-- **Python 3.9+** installed on your computer
-- **Anthropic API Key** (required) - See setup instructions below
-- **YouTube Data API Key** (optional but recommended) - Improves Spotify fallback
+## 📖 Documentation
 
-### Getting Your API Keys
+- **[QUICKSTART.md](email-filter/QUICKSTART.md)** - Get running in 10 minutes
+- **[README.md](email-filter/README.md)** - Complete feature list, setup, customization
+- **[TESTING.md](email-filter/TESTING.md)** - Comprehensive testing procedures
+- **[EXAMPLE_OUTPUT.md](email-filter/EXAMPLE_OUTPUT.md)** - Sample summary emails
 
-#### Anthropic API Key (Required)
+## 💰 Cost
 
-⚠️ **Important**: Claude Pro subscription does NOT include API access. You need a separate API account.
+With 50 emails/day using Claude 3.5 Haiku:
+- **Daily:** ~$0.015 (~1.5 cents)
+- **Monthly:** ~$0.45
+- **New accounts get $5 free credit** (covers ~330 days!)
 
-1. Go to [console.anthropic.com](https://console.anthropic.com)
-2. Sign up or log in (separate from claude.ai)
-3. Navigate to **API Keys** section in Settings
-4. Click **Create Key**
-5. Copy the key (it starts with `sk-ant-...`)
-6. **Pricing**: Pay-as-you-go, typically $0.03-0.05 per podcast summary (Claude 3.5 Sonnet)
-7. **Free Credit**: New accounts get $5 free credit
+## 📧 How It Works
 
-#### YouTube Data API Key (Optional)
+1. **Hourly scan** - Checks your inbox for unread emails
+2. **AI Classification** - Sends each email to Claude for intelligent categorization
+3. **Auto-Organization** - Moves emails to appropriate folders:
+   - **Promotional emails** → `Promos` label + archived
+   - **Receipts** → `Receipts` label + archived
+   - **Read automation summaries** → `Automations` label + archived
+4. **Summary Email** - Sends you a formatted summary of actions taken
 
-This improves Spotify podcast support by enabling automatic YouTube search.
+## 🎯 What Gets Filtered
 
-1. Go to [console.cloud.google.com](https://console.cloud.google.com)
-2. Create a new project (or select existing)
-3. Enable **YouTube Data API v3**
-4. Navigate to **Credentials**
-5. Click **Create Credentials** → **API Key**
-6. Copy the API key
-7. **Pricing**: 100% FREE (10,000 queries/day quota)
+✅ **Promotional Emails** - Marketing, sales, deals from brands/retailers
 
-## 🚀 Installation & Setup
+✅ **Receipts** - Purchase confirmations, order receipts
 
-### Step 1: Download the Project
+✅ **Read Automation Summaries** - Only the "Email Filter Summary" emails this script creates
 
-If you haven't already, download or clone this repository to your computer.
+❌ **NOT Filtered** - Content newsletters (Morning Brew, Lenny's Newsletter, etc.), personal emails, important work emails
 
-### Step 2: Install Python
+## 🛠️ Technology
 
-1. Check if Python is installed:
-   ```bash
-   python --version
-   ```
-   or
-   ```bash
-   python3 --version
-   ```
-
-2. If not installed, download from [python.org](https://www.python.org/downloads/)
-   - **Windows**: Download the installer and check "Add Python to PATH"
-   - **Mac**: Use the installer or `brew install python`
-   - **Linux**: Usually pre-installed, or use `sudo apt install python3`
-
-### Step 3: Set Up Virtual Environment
-
-Open Terminal (Mac/Linux) or Command Prompt (Windows) and navigate to the project directory:
-
-```bash
-cd path/to/podcast-summarizer
-```
-
-Create a virtual environment:
-
-**Mac/Linux:**
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-**Windows:**
-```bash
-python -m venv venv
-venv\Scripts\activate
-```
-
-You should see `(venv)` appear in your terminal prompt.
-
-### Step 4: Install Dependencies
-
-With the virtual environment activated, install required packages:
-
-```bash
-pip install -r requirements.txt
-```
-
-This will install:
-- Streamlit (web interface)
-- Anthropic (Claude API for AI summarization)
-- YouTube Transcript API (transcript fetching)
-- Google API Client (YouTube search)
-- And other dependencies
-
-### Step 5: Configure API Keys
-
-1. Copy the example environment file:
-
-   **Mac/Linux:**
-   ```bash
-   cp .env.example .env
-   ```
-
-   **Windows:**
-   ```bash
-   copy .env.example .env
-   ```
-
-2. Open the `.env` file in a text editor (Notepad, TextEdit, VS Code, etc.)
-
-3. Add your API keys:
-
-   ```env
-   ANTHROPIC_API_KEY=sk-ant-your-actual-key-here
-   YOUTUBE_API_KEY=your-youtube-api-key-here
-   ```
-
-4. Save the file
-
-⚠️ **Important**: Never share your `.env` file or commit it to GitHub. It's already in `.gitignore`.
-
-## 🎬 Running the Application
-
-1. Make sure your virtual environment is activated (you should see `(venv)` in terminal)
-
-2. Run the Streamlit app:
-
-   ```bash
-   streamlit run app.py
-   ```
-
-3. Your default web browser will automatically open to `http://localhost:8501`
-
-4. If it doesn't open automatically, navigate to the URL shown in the terminal
-
-## 📖 How to Use
-
-1. **Enter a Podcast URL**
-   - YouTube: `https://youtube.com/watch?v=xxxxx`
-   - Spotify: `https://open.spotify.com/episode/xxxxx`
-
-2. **Select a Summary Style**
-   - Choose from the 8 available styles based on podcast content
-
-3. **Click "Generate Summary"**
-   - The app will:
-     - Fetch the transcript (or search YouTube if Spotify)
-     - Identify speakers
-     - Generate AI summary
-     - Display results
-
-4. **Download Your Summary**
-   - Click "Download Markdown" or "Download Text"
-   - Summary is saved to your Downloads folder
-
-## 🎨 Customizing Summary Styles
-
-You can customize how summaries are generated by editing `config/prompts.json`.
-
-1. Open `config/prompts.json` in a text editor
-2. Modify the `system_prompt` for any style
-3. Save the file
-4. Restart the application
-5. Your changes will be applied immediately
-
-Example:
-```json
-{
-  "business_strategy": {
-    "name": "Business Strategy",
-    "system_prompt": "You are an expert business analyst... [your custom instructions]",
-    "emphasis": ["business models", "revenue strategies"]
-  }
-}
-```
-
-## 🔧 Troubleshooting
-
-### "Anthropic API Key not found"
-- Make sure you've created a `.env` file (not `.env.example`)
-- Check that your API key is correctly pasted
-- Ensure there are no extra spaces or quotes around the key
-
-### "Could not fetch transcript from YouTube"
-- The video may not have captions/subtitles enabled
-- Try a different episode with captions
-- Check if the URL is correct
-
-### "Could not find episode on YouTube"
-- Add a YouTube API key to enable better search
-- Or manually search YouTube and use that URL instead
-- Some Spotify exclusives may not be on YouTube
-
-### "Invalid or expired Anthropic API key"
-- Verify your key at [console.anthropic.com](https://console.anthropic.com)
-- Check if you have billing enabled
-- Make sure you have API credits available
-
-### "Module not found" errors
-- Make sure your virtual environment is activated
-- Run `pip install -r requirements.txt` again
-
-## 💰 Cost Estimates
-
-### Anthropic Claude API
-- Model used: Claude 3.5 Sonnet (high quality)
-- Average cost per summary: **$0.03 - 0.05**
-- For a 1-hour podcast: typically **~$0.04**
-- $5 free credit = approximately 100-150 summaries
-
-### YouTube Data API
-- **100% FREE**
-- 10,000 queries/day quota (more than enough)
-
-## 📝 Example Output
-
-```markdown
-# The Tim Ferriss Show - Episode #123
-**Duration:** 1h 45m | **Style:** Business Strategy
-
-## 🎯 Key Takeaways
-- Focus on high-leverage activities that drive 80% of results
-- Build systems, not just goals, for sustainable growth
-- Validate ideas quickly with minimum viable products
-- Leverage other people's audiences through partnerships
-
-## 📝 Detailed Summary
-
-### Section 1: The 80/20 Principle in Business
-
-**Summary:** The conversation explores how the Pareto Principle applies
-to modern entrepreneurship, with specific examples from bootstrapped
-startups that achieved rapid growth.
-
-**Key Quote:**
-> "Most entrepreneurs confuse motion with progress. Focus on the vital
-few activities that actually move the needle." - Tim Ferriss
-
-**Main Points:**
-- Tim Ferriss emphasizes identifying the 20% of activities that drive 80% of revenue
-- Guest shares case study of cutting 50% of product line to increase profits by 40%
-- Discussion of how to ruthlessly prioritize in the early stages
-
-...
-```
-
-## 🚀 V2 Future Enhancements
-
-Planned features for future versions:
-- Manual transcript upload
-- Whisper integration for local transcription
-- Summary history with database
-- Export to PDF format
-- Batch processing multiple podcasts
-- Cloud deployment guide
-- Multiple language support
-- Custom timestamp extraction
-- Podcast RSS feed support
-
-## 🤝 Contributing
-
-This is a personal project, but suggestions are welcome! If you encounter bugs or have feature requests, please create an issue.
+- **Google Apps Script** - Cloud automation platform
+- **Claude 3.5 Haiku API** - AI email classification
+- **Gmail API** - Email access and manipulation
 
 ## 📄 License
 
-This project is open source and available for personal use.
-
-## 🙏 Acknowledgments
-
-Built with:
-- [Streamlit](https://streamlit.io) - Web framework
-- [Anthropic Claude](https://anthropic.com) - AI summarization
-- [YouTube Transcript API](https://github.com/jdepoix/youtube-transcript-api) - Transcript extraction
-- [Google YouTube Data API](https://developers.google.com/youtube/v3) - Video search
+Open source and free to use for personal purposes.
 
 ---
 
-**Need Help?** Check the troubleshooting section above or review the error messages in the app carefully.
+**Made with ❤️ for inbox zero enthusiasts**
 
-**Enjoy your podcast summaries! 🎉**
+Enjoy your clean inbox! ✨
