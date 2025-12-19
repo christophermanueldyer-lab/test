@@ -21,14 +21,14 @@
 
 const CONFIG = {
   // The name of the sheet tab containing your transaction data
-  sheetName: 'Transactions',
+  sheetName: 'Filtered Transactions',
 
   // Your email address to receive the daily update
-  recipientEmail: 'your-email@gmail.com',
+  recipientEmail: 'christophermanueldyer@gmail.com',
 
   // Budget configuration - cell reference for your monthly variable budget
   // Example: 'Budget!B5' means cell B5 in the 'Budget' sheet tab
-  variableBudgetCell: 'Budget!B5',  // UPDATE THIS with your actual cell reference
+  variableBudgetCell: 'Variable Budget for Email!B17',
 
   // Column names in your Google Sheet
   // Note: Column K should contain either "Income" or "Expense"
