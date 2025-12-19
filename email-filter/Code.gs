@@ -53,6 +53,40 @@ function filterEmails() {
       }
     }
 
+    // Also search for READ "Daily Finance Update" emails still in inbox
+    const readFinanceThreads = GmailApp.search('is:read in:inbox subject:"Daily Finance Update"', 0, 20);
+    Logger.log(`Found ${readFinanceThreads.length} read Daily Finance Update emails in inbox`);
+
+    // Process read finance updates
+    for (const thread of readFinanceThreads) {
+      const messages = thread.getMessages();
+
+      // Process the most recent message in the thread
+      if (messages.length > 0) {
+        const message = messages[messages.length - 1];
+        if (!message.isUnread()) {
+          processEmailToAutomations(message, results, 'Daily Finance Update');
+        }
+      }
+    }
+
+    // Also search for READ emails from notifications@yutori.com still in inbox
+    const readYutoriThreads = GmailApp.search('is:read in:inbox from:notifications@yutori.com', 0, 20);
+    Logger.log(`Found ${readYutoriThreads.length} read Yutori notification emails in inbox`);
+
+    // Process read yutori notifications
+    for (const thread of readYutoriThreads) {
+      const messages = thread.getMessages();
+
+      // Process the most recent message in the thread
+      if (messages.length > 0) {
+        const message = messages[messages.length - 1];
+        if (!message.isUnread()) {
+          processEmailToAutomations(message, results, 'Yutori notification');
+        }
+      }
+    }
+
     // Send summary email if there's anything to report
     if (results.filtered.length > 0 || results.notFiltered.length > 0 || results.errors.length > 0) {
       sendSummaryEmail(results);
@@ -127,6 +161,40 @@ function processEmail(message, results, forceProcess = false) {
 
   } catch (error) {
     Logger.log(`Error processing email: ${error.toString()}`);
+    results.errors.push({
+      sender: message.getFrom(),
+      subject: message.getSubject(),
+      error: error.toString()
+    });
+  }
+}
+
+/**
+ * Process specific emails directly to Automations folder
+ * Used for Daily Finance Update and Yutori notifications
+ */
+function processEmailToAutomations(message, results, emailType) {
+  try {
+    const sender = message.getFrom();
+    const subject = message.getSubject();
+
+    Logger.log(`Processing ${emailType}: ${sender} - ${subject}`);
+
+    // Apply Automations label and archive
+    applyLabel(message, 'Summary Email (Already Read)');
+    message.getThread().moveToArchive();
+
+    results.filtered.push({
+      sender,
+      subject,
+      category: 'Summary Email (Already Read)',
+      rationale: emailType
+    });
+
+    Logger.log(`Filtered ${emailType} to Automations: ${subject}`);
+
+  } catch (error) {
+    Logger.log(`Error processing ${emailType}: ${error.toString()}`);
     results.errors.push({
       sender: message.getFrom(),
       subject: message.getSubject(),
