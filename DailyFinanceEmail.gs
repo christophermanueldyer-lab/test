@@ -419,6 +419,20 @@ function formatEmailBody(summary) {
           font-weight: 500;
           color: #374151;
         }
+        .budget-explanation {
+          font-size: 11px;
+          color: #9CA3AF;
+          font-weight: 400;
+          margin-top: 4px;
+          line-height: 1.4;
+        }
+        .budget-explanation a {
+          color: #667EEA;
+          text-decoration: none;
+        }
+        .budget-explanation a:hover {
+          text-decoration: underline;
+        }
         .cash-flow-row {
           background-color: #F0F9FF;
           font-weight: 600;
@@ -506,7 +520,12 @@ function formatEmailBody(summary) {
             </thead>
             <tbody>
               <tr>
-                <td class="row-label">Variable Budget</td>
+                <td class="row-label">
+                  Variable Budget
+                  <div class="budget-explanation">
+                    Discretionary budget after mortgage, nanny & other fixed costs (<a href="https://docs.google.com/spreadsheets/d/1rlEQXvB_AkeS9jCTgS-kzkXLkKHP7ZsCwxeOlSlekIY/edit?gid=2132143676#gid=2132143676" target="_blank">view all</a>)
+                  </div>
+                </td>
                 <td class="amount" style="color: #374151;">
                   ${formatCurrency(summary.mtd.variableBudget)}
                 </td>
