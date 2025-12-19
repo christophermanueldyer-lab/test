@@ -26,6 +26,10 @@ const CONFIG = {
   // Your email address to receive the daily update
   recipientEmail: 'your-email@gmail.com',
 
+  // Budget configuration - cell reference for your monthly variable budget
+  // Example: 'Budget!B5' means cell B5 in the 'Budget' sheet tab
+  variableBudgetCell: 'Budget!B5',  // UPDATE THIS with your actual cell reference
+
   // Column names in your Google Sheet
   // Note: Column K should contain either "Income" or "Expense"
   columns: {
@@ -54,8 +58,9 @@ const CONFIG = {
  */
 function sendDailyFinanceEmail() {
   try {
+    const variableBudget = getVariableBudget();
     const data = getTransactionData();
-    const summary = calculateFinancialSummary(data);
+    const summary = calculateFinancialSummary(data, variableBudget);
     const emailBody = formatEmailBody(summary);
 
     MailApp.sendEmail({
@@ -110,6 +115,27 @@ function testEmail() {
 // ============================================================================
 // DATA PROCESSING FUNCTIONS
 // ============================================================================
+
+/**
+ * Get the monthly variable budget from the specified cell
+ */
+function getVariableBudget() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  try {
+    const range = ss.getRange(CONFIG.variableBudgetCell);
+    const value = range.getValue();
+    const budget = parseFloat(value);
+
+    if (isNaN(budget)) {
+      throw new Error(`Variable budget cell "${CONFIG.variableBudgetCell}" does not contain a valid number`);
+    }
+
+    return budget;
+  } catch (error) {
+    throw new Error(`Failed to read variable budget from cell "${CONFIG.variableBudgetCell}": ${error.message}`);
+  }
+}
 
 /**
  * Get transaction data from the Google Sheet
@@ -177,12 +203,12 @@ function getTransactionData() {
 }
 
 /**
- * Calculate MTD and YTD financial summary
+ * Calculate MTD and YTD budget tracking summary
  */
-function calculateFinancialSummary(transactions) {
+function calculateFinancialSummary(transactions, monthlyVariableBudget) {
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth();
+  const currentMonth = now.getMonth();  // 0-indexed (0 = January)
   const currentDay = now.getDate();
 
   // Start of current month
@@ -196,12 +222,19 @@ function calculateFinancialSummary(transactions) {
   const yesterdayStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
   const yesterdayEnd = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate() + 1);
 
+  // Days in current month
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
   const summary = {
-    mtd: { income: 0, expenses: 0, netCashFlow: 0 },
-    ytd: { income: 0, expenses: 0, netCashFlow: 0 },
-    transactionCount: {
-      mtd: { income: 0, expenses: 0 },
-      ytd: { income: 0, expenses: 0 }
+    mtd: {
+      variableBudget: monthlyVariableBudget,
+      actualSpending: 0,
+      pace: 0
+    },
+    ytd: {
+      variableBudget: monthlyVariableBudget * (currentMonth + 1),  // Month number (1-12)
+      actualSpending: 0,
+      pace: 0
     },
     largeExpenses: {
       yesterday: [],  // Expenses > $100 from yesterday
@@ -213,37 +246,25 @@ function calculateFinancialSummary(transactions) {
     // Use the Income Or Expense column (column K) to determine type
     const isIncome = t.type === 'income';
 
-    // Year-to-Date calculations
-    if (t.date >= yearStart) {
-      if (isIncome) {
-        summary.ytd.income += t.amount;
-        summary.transactionCount.ytd.income++;
-      } else {
-        summary.ytd.expenses += t.amount;  // Sum raw amounts (negative expenses, positive refunds)
-        summary.transactionCount.ytd.expenses++;
-      }
+    // Year-to-Date actual spending (all expenses)
+    if (t.date >= yearStart && !isIncome) {
+      summary.ytd.actualSpending += t.amount;  // Sum raw amounts (negative expenses, positive refunds)
     }
 
-    // Month-to-Date calculations
-    if (t.date >= monthStart) {
-      if (isIncome) {
-        summary.mtd.income += t.amount;
-        summary.transactionCount.mtd.income++;
-      } else {
-        summary.mtd.expenses += t.amount;  // Sum raw amounts (negative expenses, positive refunds)
-        summary.transactionCount.mtd.expenses++;
+    // Month-to-Date actual spending (all expenses)
+    if (t.date >= monthStart && !isIncome) {
+      summary.mtd.actualSpending += t.amount;  // Sum raw amounts (negative expenses, positive refunds)
 
-        // Track large expenses from this month (> $1000)
-        const absAmount = Math.abs(t.amount);
-        if (absAmount > 1000) {
-          summary.largeExpenses.thisMonth.push({
-            date: t.date,
-            description: t.description,
-            amount: absAmount,
-            account: t.account,
-            accountNumber: t.accountNumber
-          });
-        }
+      // Track large expenses from this month (> $1000)
+      const absAmount = Math.abs(t.amount);
+      if (absAmount > 1000) {
+        summary.largeExpenses.thisMonth.push({
+          date: t.date,
+          description: t.description,
+          amount: absAmount,
+          account: t.account,
+          accountNumber: t.accountNumber
+        });
       }
     }
 
@@ -262,13 +283,18 @@ function calculateFinancialSummary(transactions) {
     }
   });
 
-  // Calculate net cash flow (expenses are negative, so adding works correctly)
-  summary.mtd.netCashFlow = summary.mtd.income + summary.mtd.expenses;
-  summary.ytd.netCashFlow = summary.ytd.income + summary.ytd.expenses;
+  // Convert actual spending to positive for display
+  summary.mtd.actualSpending = Math.abs(summary.mtd.actualSpending);
+  summary.ytd.actualSpending = Math.abs(summary.ytd.actualSpending);
 
-  // Convert expenses to positive for display only
-  summary.mtd.expenses = Math.abs(summary.mtd.expenses);
-  summary.ytd.expenses = Math.abs(summary.ytd.expenses);
+  // Calculate MTD pace: (Actual / Expected) × 100
+  // Expected = Budget × (Days Elapsed / Days in Month)
+  const daysElapsed = currentDay;
+  const expectedSpending = monthlyVariableBudget * (daysElapsed / daysInMonth);
+  summary.mtd.pace = expectedSpending > 0 ? (summary.mtd.actualSpending / expectedSpending) * 100 : 0;
+
+  // Calculate YTD pace: (Actual / Budget) × 100
+  summary.ytd.pace = summary.ytd.variableBudget > 0 ? (summary.ytd.actualSpending / summary.ytd.variableBudget) * 100 : 0;
 
   return summary;
 }
@@ -284,10 +310,14 @@ function formatEmailBody(summary) {
     return '$' + amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };
 
-  const getColor = (amount) => {
-    if (amount > 0) return '#059669'; // Green
-    if (amount < 0) return '#DC2626'; // Red
-    return '#6B7280'; // Gray
+  const getPaceColor = (pace) => {
+    if (pace < 100) return '#059669'; // Green - under pace
+    if (pace > 110) return '#DC2626'; // Red - over pace
+    return '#6B7280'; // Gray - within acceptable range
+  };
+
+  const formatPace = (pace) => {
+    return pace.toFixed(0) + '%';
   };
 
   const formatDate = (date) => {
@@ -479,35 +509,31 @@ function formatEmailBody(summary) {
               </tr>
             </thead>
             <tbody>
-              <tr class="cash-flow-row">
-                <td class="row-label">Cash Flow</td>
-                <td class="amount" style="color: ${getColor(summary.mtd.netCashFlow)};">
-                  ${formatCurrency(summary.mtd.netCashFlow)}
+              <tr>
+                <td class="row-label">Variable Budget</td>
+                <td class="amount" style="color: #374151;">
+                  ${formatCurrency(summary.mtd.variableBudget)}
                 </td>
-                <td class="amount" style="color: ${getColor(summary.ytd.netCashFlow)};">
-                  ${formatCurrency(summary.ytd.netCashFlow)}
+                <td class="amount" style="color: #374151;">
+                  ${formatCurrency(summary.ytd.variableBudget)}
                 </td>
               </tr>
               <tr>
-                <td class="row-label">Income</td>
-                <td class="amount" style="color: #059669;">
-                  ${formatCurrency(summary.mtd.income)}
-                  <span class="transaction-count">${summary.transactionCount.mtd.income} transactions</span>
+                <td class="row-label">Actual Spending</td>
+                <td class="amount" style="color: #DC2626;">
+                  ${formatCurrency(summary.mtd.actualSpending)}
                 </td>
-                <td class="amount" style="color: #059669;">
-                  ${formatCurrency(summary.ytd.income)}
-                  <span class="transaction-count">${summary.transactionCount.ytd.income} transactions</span>
+                <td class="amount" style="color: #DC2626;">
+                  ${formatCurrency(summary.ytd.actualSpending)}
                 </td>
               </tr>
               <tr>
-                <td class="row-label">Expenses</td>
-                <td class="amount" style="color: #DC2626;">
-                  ${formatCurrency(summary.mtd.expenses)}
-                  <span class="transaction-count">${summary.transactionCount.mtd.expenses} transactions</span>
+                <td class="row-label">Pace</td>
+                <td class="amount" style="color: ${getPaceColor(summary.mtd.pace)};">
+                  ${formatPace(summary.mtd.pace)}
                 </td>
-                <td class="amount" style="color: #DC2626;">
-                  ${formatCurrency(summary.ytd.expenses)}
-                  <span class="transaction-count">${summary.transactionCount.ytd.expenses} transactions</span>
+                <td class="amount" style="color: ${getPaceColor(summary.ytd.pace)};">
+                  ${formatPace(summary.ytd.pace)}
                 </td>
               </tr>
             </tbody>
