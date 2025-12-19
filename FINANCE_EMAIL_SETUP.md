@@ -1,31 +1,35 @@
 # 💰 Daily Finance Email Tool - Setup Guide
 
-This Google Apps Script tool automatically sends you a daily email with your financial summary, including Month-to-Date (MTD) and Year-to-Date (YTD) cash flow from your Google Sheets transaction data.
+This Google Apps Script tool automatically sends you a daily email with your variable budget tracking, including Month-to-Date (MTD) and Year-to-Date (YTD) spending analysis from your Google Sheets transaction data.
 
 ## 📋 Prerequisites
 
 - A Google Sheet with your transaction data
+- A cell in your spreadsheet with your monthly variable budget amount
 - Gmail account (same as your Google Sheet)
-- Transaction data with at least: Date, Amount, and Type columns
+- Transaction data with: Date, Description, Amount, Account, Account #, and Income Or Expense columns
 
 ## 📊 Google Sheet Format
 
-Your Google Sheet should have a tab with transaction data. The required columns are:
+Your Google Sheet should have:
 
-| Date       | Amount  | ... | Income Or Expense (Column K) |
-|------------|---------|-----|------------------------------|
-| 2025-01-15 | 5000.00 | ... | Income                       |
-| 2025-01-16 | -150.00 | ... | Expense                      |
-| 2025-01-17 | -45.50  | ... | Expense                      |
-| 2025-01-18 | 25.00   | ... | Expense                      |
-| 2025-01-19 | 200.00  | ... | Income                       |
+1. **A transactions tab** with these columns:
+
+| Date       | Description | Amount  | Account | Account # | ... | Income Or Expense |
+|------------|-------------|---------|---------|-----------|-----|-------------------|
+| 2025-12-15 | Groceries   | -150.00 | Chase   | 1234      | ... | Expense           |
+| 2025-12-16 | Salary      | 5000.00 | Wells   | 5678      | ... | Income            |
+| 2025-12-17 | Gas         | -45.50  | Amex    | 9012      | ... | Expense           |
+
+2. **A cell with your monthly variable budget** (e.g., `Budget!B5` containing `4000`)
 
 ### Important Notes:
-- **Date Column**: Any date format recognized by Google Sheets
-- **Amount Column**: Numeric values (can be positive or negative)
-- **Income Or Expense Column (Column K)**: Must contain either "Income" or "Expense" (case insensitive)
-- All other columns (Category, Description, Account, etc.) are ignored
-- Column names can be customized in the script configuration
+- **Date**: Any date format recognized by Google Sheets
+- **Description**: Transaction description (for large expense tracking)
+- **Amount**: Numeric values (negative for expenses, positive for income)
+- **Account & Account #**: For tracking which account expenses came from
+- **Income Or Expense**: Must contain either "Income" or "Expense" (case insensitive)
+- **Variable Budget Cell**: A single cell containing your monthly variable budget as a number
 
 ## 🚀 Installation Steps
 
@@ -51,23 +55,29 @@ In the script, update the `CONFIG` section at the top with your settings:
 ```javascript
 const CONFIG = {
   // REQUIRED: Update this to match your sheet tab name
-  sheetName: 'Transactions',  // Change to your actual tab name
+  sheetName: 'Transactions',
 
   // REQUIRED: Update with your email address
   recipientEmail: 'your-email@gmail.com',
 
+  // REQUIRED: Cell reference for your monthly variable budget
+  // Example: 'Budget!B5' means cell B5 in the 'Budget' sheet tab
+  variableBudgetCell: 'Budget!B5',
+
   // Column names in your Google Sheet
-  // Note: Column K should contain either "Income" or "Expense"
   columns: {
     date: 'Date',
+    description: 'Description',
     amount: 'Amount',
-    incomeOrExpense: 'Income Or Expense'  // Column K in your sheet
+    account: 'Account',
+    accountNumber: 'Account #',
+    incomeOrExpense: 'Income Or Expense'
   },
 
   // Set your preferred email time (24-hour format)
   emailTime: {
     hour: 9,    // 9 AM
-    minute: 0   // 0 minutes
+    minute: 0
   }
 };
 ```
@@ -115,24 +125,40 @@ After running `setup`:
 
 ## 📧 Email Output
 
-You'll receive a beautifully formatted, mobile-friendly HTML email daily with a clean table layout:
+You'll receive a mobile-friendly HTML email daily with:
 
-### Email Format
-The email displays your financial data in a table with:
-- **Columns**: MTD (Month to Date) and YTD (Year to Date)
-- **Rows**:
-  - **Cash Flow** (highlighted at top) - Your net position
-  - **Income** - Total money in (with transaction count)
-  - **Expenses** - Total money out (with transaction count)
+### Main Budget Tracking Table
+```
+┌──────────────────┬─────────┬─────────┐
+│                  │   MTD   │   YTD   │
+├──────────────────┼─────────┼─────────┤
+│ Variable Budget  │ $4,000  │ $48,000 │
+│ Actual Spending  │ $2,800  │ $42,000 │
+│ % Budget Spent   │   70%   │   88%   │
+└──────────────────┴─────────┴─────────┘
+```
 
-### Color Coding
-- **Cash Flow**: Green if positive, Red if negative
-- **Income**: Always green
-- **Expenses**: Always red
-- Transaction counts displayed in small gray text under each amount
+**What it shows:**
+- **Variable Budget**: Your monthly budget (MTD) and year-to-date budget (YTD = monthly × month number)
+- **Actual Spending**: Total of all expenses from transactions
+- **% Budget Spent**: (Actual / Budget) × 100
+  - Black if ≤ 100% (on or under budget)
+  - Red if > 100% (over budget)
+
+### Large Expense Sections
+
+**💸 Large Expenses from Yesterday (> $100)**
+- Lists all expenses from yesterday exceeding $100
+- Shows: Description, Date, Account info, Amount
+- Sorted by amount (highest first)
+
+**🔴 Large Expenses This Month (> $1,000)**
+- Lists all expenses this month exceeding $1,000
+- Shows: Description, Date, Account info, Amount
+- Sorted by amount (highest first)
 
 ### Mobile Responsive
-The table automatically adjusts for mobile devices, making it easy to check your finances on the go.
+The email automatically adjusts for mobile devices.
 
 ## 🎨 Customization Options
 
@@ -156,9 +182,20 @@ If your sheet uses different column names, update the CONFIG:
 ```javascript
 columns: {
   date: 'Transaction Date',
+  description: 'Notes',
   amount: 'Amount ($)',
-  incomeOrExpense: 'Type'  // Whatever your column K is named
+  account: 'Bank',
+  accountNumber: 'Last 4',
+  incomeOrExpense: 'Type'
 }
+```
+
+### Change Variable Budget Cell
+
+Point to a different cell with your budget:
+
+```javascript
+variableBudgetCell: 'Summary!C10',  // Cell C10 in Summary tab
 ```
 
 ### Multiple Recipients
@@ -191,9 +228,20 @@ MailApp.sendEmail({
 ### No data in email / amounts are $0.00
 - Verify your transactions have valid dates
 - Check that amounts are numeric (not text)
-- Ensure column K ("Income Or Expense") contains exactly "Income" or "Expense" for each transaction
-- Transactions with empty or invalid values in column K will be skipped
+- Ensure "Income Or Expense" column contains exactly "Income" or "Expense" for each transaction
+- Verify `variableBudgetCell` points to the correct cell
+- Check that the budget cell contains a number, not text
 - Check the execution log for error messages
+
+### Budget shows $0.00
+- Double-check `variableBudgetCell` format: `'SheetName!CellReference'`
+- Make sure the cell contains a number (e.g., `4000`), not a formula result stored as text
+- Try changing the cell to a plain number
+
+### Large expenses not showing
+- Verify yesterday's date and this month's transactions exist
+- Check that amounts exceed the thresholds ($100 for yesterday, $1,000 for this month)
+- Ensure transactions are marked as "Expense" in the Income Or Expense column
 
 ### Authorization errors
 - Go to **Triggers** and delete all existing triggers
@@ -206,20 +254,37 @@ MailApp.sendEmail({
 3. Click the three dots (⋮) on the right
 4. Click **Delete trigger**
 
-## 📊 Understanding Income vs Expense Detection
+## 📊 How It Works
 
-The script uses a simple, straightforward approach:
+### Budget Calculations
 
-**Column K ("Income Or Expense") determines the transaction type:**
-- If the value is "Income" → Counted as income
-- If the value is "Expense" → Counted as expense
-- Any other value or empty cell → Transaction is skipped
+**MTD (Month to Date):**
+- Variable Budget = Value from your budget cell (constant)
+- Actual Spending = Sum of all expenses this month
+- % Budget Spent = (Actual / Budget) × 100
+
+**YTD (Year to Date):**
+- Variable Budget = Monthly budget × Current month number (January = 1, February = 2, etc.)
+- Actual Spending = Sum of all expenses year-to-date
+- % Budget Spent = (Actual / Budget) × 100
+
+### Transaction Classification
+
+**Column-based:** The script uses the "Income Or Expense" column to determine transaction type:
+- "Income" → Counted as income (ignored in spending calculations)
+- "Expense" → Counted as expense
+- Any other value → Transaction is skipped
+
+**Amount handling:**
+- Expenses are summed as raw amounts (negative values)
+- Refunds (positive amounts marked as "Expense") reduce total spending
+- Final spending amount is converted to positive for display
 
 ### Best Practices:
-- Ensure every transaction has either "Income" or "Expense" in column K
+- Ensure every transaction has either "Income" or "Expense"
 - Values are case-insensitive ("income" and "INCOME" both work)
-- Keep your column K values consistent
-- The amount value (positive or negative) doesn't affect classification - only column K matters
+- Use negative amounts for expenses, positive for income
+- Refunds should be positive amounts marked as "Expense"
 
 ## 🔐 Privacy & Security
 
