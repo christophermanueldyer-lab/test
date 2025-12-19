@@ -287,13 +287,10 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
   summary.mtd.actualSpending = Math.abs(summary.mtd.actualSpending);
   summary.ytd.actualSpending = Math.abs(summary.ytd.actualSpending);
 
-  // Calculate MTD pace: (Actual / Expected) × 100
-  // Expected = Budget × (Days Elapsed / Days in Month)
-  const daysElapsed = currentDay;
-  const expectedSpending = monthlyVariableBudget * (daysElapsed / daysInMonth);
-  summary.mtd.pace = expectedSpending > 0 ? (summary.mtd.actualSpending / expectedSpending) * 100 : 0;
+  // Calculate MTD % Budget Spent: (Actual / Budget) × 100
+  summary.mtd.pace = summary.mtd.variableBudget > 0 ? (summary.mtd.actualSpending / summary.mtd.variableBudget) * 100 : 0;
 
-  // Calculate YTD pace: (Actual / Budget) × 100
+  // Calculate YTD % Budget Spent: (Actual / Budget) × 100
   summary.ytd.pace = summary.ytd.variableBudget > 0 ? (summary.ytd.actualSpending / summary.ytd.variableBudget) * 100 : 0;
 
   return summary;
@@ -311,9 +308,8 @@ function formatEmailBody(summary) {
   };
 
   const getPaceColor = (pace) => {
-    if (pace < 100) return '#059669'; // Green - under pace
-    if (pace > 110) return '#DC2626'; // Red - over pace
-    return '#6B7280'; // Gray - within acceptable range
+    if (pace > 100) return '#DC2626'; // Red - over budget
+    return '#374151'; // Black - at or under budget
   };
 
   const formatPace = (pace) => {
@@ -345,7 +341,7 @@ function formatEmailBody(summary) {
               ${formatDate(exp.date)}${accountInfo ? ' • ' + accountInfo : ''}
             </div>
           </div>
-          <div style="font-weight: 600; color: #DC2626; font-size: 16px; white-space: nowrap; margin-left: 16px;">
+          <div style="font-weight: 600; color: #374151; font-size: 16px; white-space: nowrap; margin-left: 16px;">
             ${formatCurrency(exp.amount)}
           </div>
         </div>
@@ -520,15 +516,15 @@ function formatEmailBody(summary) {
               </tr>
               <tr>
                 <td class="row-label">Actual Spending</td>
-                <td class="amount" style="color: #DC2626;">
+                <td class="amount" style="color: #374151;">
                   ${formatCurrency(summary.mtd.actualSpending)}
                 </td>
-                <td class="amount" style="color: #DC2626;">
+                <td class="amount" style="color: #374151;">
                   ${formatCurrency(summary.ytd.actualSpending)}
                 </td>
               </tr>
               <tr>
-                <td class="row-label">Pace</td>
+                <td class="row-label">% Budget Spent</td>
                 <td class="amount" style="color: ${getPaceColor(summary.mtd.pace)};">
                   ${formatPace(summary.mtd.pace)}
                 </td>
