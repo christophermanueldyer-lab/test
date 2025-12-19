@@ -325,8 +325,8 @@ function formatEmailBody(summary) {
       return '<p style="color: #9CA3AF; font-style: italic; margin: 0;">None</p>';
     }
 
-    // Sort by amount descending
-    const sorted = expenses.sort((a, b) => b.amount - a.amount);
+    // Sort by date descending (most recent first)
+    const sorted = expenses.sort((a, b) => b.date - a.date);
 
     return sorted.map(exp => {
       const accountInfo = exp.account || exp.accountNumber
