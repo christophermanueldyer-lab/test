@@ -30,6 +30,10 @@ const CONFIG = {
   // Example: 'Budget!B5' means cell B5 in the 'Budget' sheet tab
   variableBudgetCell: 'Variable Budget for Email!B17',
 
+  // Cash balance tracking
+  cashBalanceCell: 'Balances!D9',  // Current total cash balance
+  cashHistorySheet: 'Cash Balance Trend',  // Sheet to log daily balances
+
   // Column names in your Google Sheet
   // Note: Column K should contain either "Income" or "Expense"
   columns: {
@@ -58,6 +62,9 @@ const CONFIG = {
  */
 function sendDailyFinanceEmail() {
   try {
+    // Log today's cash balance first
+    logDailyCashBalance();
+
     const variableBudget = getVariableBudget();
     const data = getTransactionData();
     const summary = calculateFinancialSummary(data, variableBudget);
@@ -115,6 +122,58 @@ function testEmail() {
 // ============================================================================
 // DATA PROCESSING FUNCTIONS
 // ============================================================================
+
+/**
+ * Log today's cash balance to the history sheet
+ */
+function logDailyCashBalance() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  try {
+    // Get current cash balance
+    const balanceRange = ss.getRange(CONFIG.cashBalanceCell);
+    const balance = parseFloat(balanceRange.getValue());
+
+    if (isNaN(balance)) {
+      throw new Error(`Cash balance cell "${CONFIG.cashBalanceCell}" does not contain a valid number`);
+    }
+
+    // Get the history sheet
+    const historySheet = ss.getSheetByName(CONFIG.cashHistorySheet);
+    if (!historySheet) {
+      throw new Error(`History sheet "${CONFIG.cashHistorySheet}" not found`);
+    }
+
+    // Get today's date (formatted as date only, no time)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Check if today's date already exists
+    const dataRange = historySheet.getDataRange();
+    const values = dataRange.getValues();
+
+    // Skip header row, check if today already logged
+    for (let i = 1; i < values.length; i++) {
+      const rowDate = new Date(values[i][0]);
+      rowDate.setHours(0, 0, 0, 0);
+
+      if (rowDate.getTime() === today.getTime()) {
+        // Already logged today, update the balance instead of adding new row
+        historySheet.getRange(i + 1, 2).setValue(balance);
+        Logger.log(`Updated cash balance for ${today.toDateString()}: ${balance}`);
+        return;
+      }
+    }
+
+    // Not logged yet, append new row
+    historySheet.appendRow([today, balance]);
+    Logger.log(`Logged new cash balance for ${today.toDateString()}: ${balance}`);
+
+  } catch (error) {
+    Logger.log('Error logging cash balance: ' + error.toString());
+    // Don't throw - we don't want to break the email if logging fails
+  }
+}
 
 /**
  * Get the monthly variable budget from the specified cell
