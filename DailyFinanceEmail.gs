@@ -68,7 +68,8 @@ function sendDailyFinanceEmail() {
     const variableBudget = getVariableBudget();
     const data = getTransactionData();
     const summary = calculateFinancialSummary(data, variableBudget);
-    const emailBody = formatEmailBody(summary);
+    const cashHistory = getCashBalanceHistory();
+    const emailBody = formatEmailBody(summary, cashHistory);
 
     MailApp.sendEmail({
       to: CONFIG.recipientEmail,
@@ -173,6 +174,49 @@ function logDailyCashBalance() {
     Logger.log('Error logging cash balance: ' + error.toString());
     // Don't throw - we don't want to break the email if logging fails
   }
+}
+
+/**
+ * Get cash balance history for the last 90 days
+ */
+function getCashBalanceHistory() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const historySheet = ss.getSheetByName(CONFIG.cashHistorySheet);
+
+  if (!historySheet) {
+    Logger.log('Cash balance history sheet not found, skipping chart');
+    return null;
+  }
+
+  const dataRange = historySheet.getDataRange();
+  const values = dataRange.getValues();
+
+  if (values.length < 2) {
+    Logger.log('Not enough cash balance history data');
+    return null;
+  }
+
+  // Parse data (skip header row)
+  const history = [];
+  for (let i = 1; i < values.length; i++) {
+    const date = new Date(values[i][0]);
+    const balance = parseFloat(values[i][1]);
+
+    if (!isNaN(date.getTime()) && !isNaN(balance)) {
+      history.push({ date: date, balance: balance });
+    }
+  }
+
+  // Sort by date ascending
+  history.sort((a, b) => a.date - b.date);
+
+  // Get last 90 days
+  const now = new Date();
+  const ninetyDaysAgo = new Date(now.getTime() - (90 * 24 * 60 * 60 * 1000));
+
+  const last90Days = history.filter(item => item.date >= ninetyDaysAgo);
+
+  return last90Days.length > 0 ? last90Days : null;
 }
 
 /**
@@ -358,7 +402,7 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
 /**
  * Format the email body with financial summary as a mobile-friendly table
  */
-function formatEmailBody(summary) {
+function formatEmailBody(summary, cashHistory) {
   const now = new Date();
   const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'EEEE, MMMM dd, yyyy');
 
@@ -377,6 +421,91 @@ function formatEmailBody(summary) {
 
   const formatDate = (date) => {
     return Utilities.formatDate(date, Session.getScriptTimeZone(), 'MMM dd');
+  };
+
+  const buildCashBalanceChart = (history) => {
+    if (!history || history.length === 0) {
+      return '';
+    }
+
+    // Find min/max for smart Y-axis range
+    const balances = history.map(h => h.balance);
+    const minBalance = Math.min(...balances);
+    const maxBalance = Math.max(...balances);
+
+    // Round to nearest $5k and add padding
+    const yMin = Math.floor(minBalance / 5000) * 5000;
+    const yMax = Math.ceil(maxBalance / 5000) * 5000;
+
+    // Format dates and balances for chart
+    const labels = history.map(h => Utilities.formatDate(h.date, Session.getScriptTimeZone(), 'M/d'));
+    const data = history.map(h => h.balance);
+
+    // Build QuickChart URL
+    const chartConfig = {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Cash Balance',
+          data: data,
+          borderColor: '#667EEA',
+          backgroundColor: 'rgba(102, 126, 234, 0.1)',
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          tension: 0.1
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: {
+            display: false
+          },
+          title: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            min: yMin,
+            max: yMax,
+            ticks: {
+              stepSize: 5000,
+              callback: function(value) {
+                return '$' + (value / 1000) + 'k';
+              }
+            },
+            grid: {
+              color: '#E5E7EB'
+            }
+          },
+          x: {
+            ticks: {
+              maxTicksLimit: 10
+            },
+            grid: {
+              display: false
+            }
+          }
+        }
+      }
+    };
+
+    const chartUrl = 'https://quickchart.io/chart?c=' + encodeURIComponent(JSON.stringify(chartConfig)) + '&width=550&height=250&devicePixelRatio=2';
+
+    return `
+      <div class="chart-section">
+        <h2 class="section-title">📈 Cash Balance Trend (Last 90 Days)</h2>
+        <div class="chart-container">
+          <img src="${chartUrl}" alt="Cash Balance Trend" style="max-width: 100%; height: auto; border-radius: 8px;">
+          <div class="chart-caption">
+            Current: ${formatCurrency(data[data.length - 1])} • Low: ${formatCurrency(minBalance)} • High: ${formatCurrency(maxBalance)}
+          </div>
+        </div>
+      </div>
+    `;
   };
 
   const formatLargeExpensesList = (expenses) => {
@@ -516,6 +645,22 @@ function formatEmailBody(summary) {
           padding: 24px 16px;
           border-top: 1px solid #E5E7EB;
         }
+        .chart-section {
+          padding: 24px 16px;
+          border-top: 1px solid #E5E7EB;
+        }
+        .chart-container {
+          background: #FFFFFF;
+          border: 1px solid #E5E7EB;
+          border-radius: 8px;
+          padding: 16px;
+          text-align: center;
+        }
+        .chart-caption {
+          margin-top: 12px;
+          font-size: 12px;
+          color: #6B7280;
+        }
         .section-title {
           font-size: 16px;
           font-weight: 600;
@@ -613,6 +758,9 @@ function formatEmailBody(summary) {
             </tbody>
           </table>
         </div>
+
+        <!-- Cash Balance Chart -->
+        ${buildCashBalanceChart(cashHistory)}
 
         <!-- Large Expenses from Yesterday -->
         <div class="large-expenses-section">
