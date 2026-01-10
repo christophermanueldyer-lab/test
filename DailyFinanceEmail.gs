@@ -478,7 +478,7 @@ function formatEmailBody(summary, cashHistory) {
             ticks: {
               stepSize: 5000,
               callback: function(value) {
-                return '$' + (value / 1000) + 'k';
+                return '$' + value.toLocaleString('en-US');
               }
             },
             grid: {
