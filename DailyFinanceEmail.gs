@@ -320,19 +320,23 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
   // Start of current year
   const yearStart = new Date(currentYear, 0, 1);
 
-  // Yesterday (calendar day, not last 24 hours)
-  const yesterday = new Date(currentYear, currentMonth, currentDay - 1);
-  const yesterdayStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
-  const yesterdayEnd = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate() + 1);
+  // Last 3 days (72 hours)
+  const threeDaysAgo = new Date(currentYear, currentMonth, currentDay - 3);
+  const threeDaysAgoStart = new Date(threeDaysAgo.getFullYear(), threeDaysAgo.getMonth(), threeDaysAgo.getDate());
 
   // Days in current month
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+  // Yesterday's date (for pacing target calculation)
+  const yesterday = new Date(currentYear, currentMonth, currentDay - 1);
+  const yesterdayDay = yesterday.getDate();
 
   const summary = {
     mtd: {
       variableBudget: monthlyVariableBudget,
       actualSpending: 0,
-      pace: 0
+      pace: 0,
+      pacingTarget: (yesterdayDay / daysInMonth) * 100  // How far through the month we are
     },
     ytd: {
       variableBudget: monthlyVariableBudget * (currentMonth + 1),  // Month number (1-12)
@@ -340,7 +344,7 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
       pace: 0
     },
     largeExpenses: {
-      yesterday: [],  // Expenses > $100 from yesterday
+      last3Days: [],  // Expenses > $100 from last 3 days
       thisMonth: []   // Expenses > $1000 from this month
     }
   };
@@ -371,11 +375,11 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
       }
     }
 
-    // Track large expenses from yesterday (> $100)
-    if (!isIncome && t.date >= yesterdayStart && t.date < yesterdayEnd) {
+    // Track large expenses from last 3 days (> $100)
+    if (!isIncome && t.date >= threeDaysAgoStart) {
       const absAmount = Math.abs(t.amount);
       if (absAmount > 100) {
-        summary.largeExpenses.yesterday.push({
+        summary.largeExpenses.last3Days.push({
           date: t.date,
           description: t.description,
           amount: absAmount,
@@ -747,7 +751,12 @@ function formatEmailBody(summary, cashHistory) {
                 </td>
               </tr>
               <tr>
-                <td class="row-label">% Budget Spent</td>
+                <td class="row-label">
+                  % Budget Spent
+                  <div class="budget-explanation">
+                    Pacing target: ${formatPace(summary.mtd.pacingTarget)}
+                  </div>
+                </td>
                 <td class="amount" style="color: ${getPaceColor(summary.mtd.pace)};">
                   ${formatPace(summary.mtd.pace)}
                 </td>
@@ -762,11 +771,11 @@ function formatEmailBody(summary, cashHistory) {
         <!-- Cash Balance Chart -->
         ${buildCashBalanceChart(cashHistory)}
 
-        <!-- Large Expenses from Yesterday -->
+        <!-- Large Expenses from Last 3 Days -->
         <div class="large-expenses-section">
-          <h2 class="section-title">💸 Large Expenses from Yesterday (> $100)</h2>
+          <h2 class="section-title">💸 Large Expenses from Last 3 Days (> $100)</h2>
           <div class="expense-list">
-            ${formatLargeExpensesList(summary.largeExpenses.yesterday)}
+            ${formatLargeExpensesList(summary.largeExpenses.last3Days)}
           </div>
         </div>
 
