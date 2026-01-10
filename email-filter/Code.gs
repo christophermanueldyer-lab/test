@@ -19,8 +19,8 @@ function filterEmails() {
       errors: []
     };
 
-    // Get unread emails from inbox
-    const unreadThreads = GmailApp.search('is:unread in:inbox', 0, 50);
+    // Get unread emails from inbox (exclude Yutori and Daily Finance Update - they're handled separately)
+    const unreadThreads = GmailApp.search('is:unread in:inbox -from:notifications@yutori.com -subject:"Daily Finance Update"', 0, 50);
     Logger.log(`Found ${unreadThreads.length} unread emails`);
 
     // Process unread emails
