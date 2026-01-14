@@ -19,10 +19,9 @@ function filterEmails() {
       errors: []
     };
 
-    // Get unread emails from inbox (exclude Yutori and Daily Finance Update - they're handled separately)
-    const unreadThreads = GmailApp.search('is:unread in:inbox -from:notifications@yutori.com -subject:"Daily Finance Update"', 0, 50);
+    // Get unread emails from inbox
+    const unreadThreads = GmailApp.search('is:unread in:inbox', 0, 50);
     Logger.log(`Found ${unreadThreads.length} unread emails`);
-    Logger.log(`Search query used: is:unread in:inbox -from:notifications@yutori.com -subject:"Daily Finance Update"`);
 
     // Process unread emails
     for (const thread of unreadThreads) {
@@ -114,12 +113,16 @@ function processEmail(message, results, forceProcess = false) {
 
     Logger.log(`Processing: ${sender} - ${subject}`);
 
-    // Debug: Check if this is a Yutori email that shouldn't be here
-    if (sender.includes('notifications@yutori.com')) {
-      Logger.log(`WARNING: Yutori email found in unread search - this should not happen!`);
-      Logger.log(`Sender: ${sender}`);
-      Logger.log(`Subject: ${subject}`);
-      Logger.log(`Is Unread: ${message.isUnread()}`);
+    // Skip Yutori and Daily Finance Update emails when unread - they're handled separately
+    if (!forceProcess && message.isUnread()) {
+      if (sender.includes('notifications@yutori.com')) {
+        Logger.log(`Skipping unread Yutori email - will process after being read`);
+        return;
+      }
+      if (subject.includes('Daily Finance Update')) {
+        Logger.log(`Skipping unread Daily Finance Update - will process after being read`);
+        return;
+      }
     }
 
     // Check if this email was previously reported as "not filtered" (unless forcing process)
