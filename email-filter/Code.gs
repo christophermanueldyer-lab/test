@@ -22,6 +22,7 @@ function filterEmails() {
     // Get unread emails from inbox (exclude Yutori and Daily Finance Update - they're handled separately)
     const unreadThreads = GmailApp.search('is:unread in:inbox -from:notifications@yutori.com -subject:"Daily Finance Update"', 0, 50);
     Logger.log(`Found ${unreadThreads.length} unread emails`);
+    Logger.log(`Search query used: is:unread in:inbox -from:notifications@yutori.com -subject:"Daily Finance Update"`);
 
     // Process unread emails
     for (const thread of unreadThreads) {
@@ -112,6 +113,14 @@ function processEmail(message, results, forceProcess = false) {
     const messageId = message.getId();
 
     Logger.log(`Processing: ${sender} - ${subject}`);
+
+    // Debug: Check if this is a Yutori email that shouldn't be here
+    if (sender.includes('notifications@yutori.com')) {
+      Logger.log(`WARNING: Yutori email found in unread search - this should not happen!`);
+      Logger.log(`Sender: ${sender}`);
+      Logger.log(`Subject: ${subject}`);
+      Logger.log(`Is Unread: ${message.isUnread()}`);
+    }
 
     // Check if this email was previously reported as "not filtered" (unless forcing process)
     if (!forceProcess && wasReportedAsNotFiltered(messageId)) {
