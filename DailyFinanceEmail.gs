@@ -330,17 +330,20 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
   // Yesterday's date (for pacing target calculation)
   const yesterday = new Date(currentYear, currentMonth, currentDay - 1);
   const yesterdayDay = yesterday.getDate();
+  const yesterdayEnd = new Date(currentYear, currentMonth, currentDay);
 
   const summary = {
     mtd: {
       variableBudget: monthlyVariableBudget,
       actualSpending: 0,
+      yesterdaySpending: 0,  // MTD spending as of end of yesterday
       pace: 0,
       pacingTarget: (yesterdayDay / daysInMonth) * 100  // How far through the month we are
     },
     ytd: {
       variableBudget: monthlyVariableBudget * (currentMonth + 1),  // Month number (1-12)
       actualSpending: 0,
+      yesterdaySpending: 0,  // YTD spending as of end of yesterday
       pace: 0
     },
     largeExpenses: {
@@ -356,11 +359,21 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
     // Year-to-Date actual spending (all expenses)
     if (t.date >= yearStart && !isIncome) {
       summary.ytd.actualSpending += t.amount;  // Sum raw amounts (negative expenses, positive refunds)
+
+      // YTD spending as of end of yesterday
+      if (t.date < yesterdayEnd) {
+        summary.ytd.yesterdaySpending += t.amount;
+      }
     }
 
     // Month-to-Date actual spending (all expenses)
     if (t.date >= monthStart && !isIncome) {
       summary.mtd.actualSpending += t.amount;  // Sum raw amounts (negative expenses, positive refunds)
+
+      // MTD spending as of end of yesterday
+      if (t.date < yesterdayEnd) {
+        summary.mtd.yesterdaySpending += t.amount;
+      }
 
       // Track large expenses from this month (> $1000)
       const absAmount = Math.abs(t.amount);
@@ -393,6 +406,12 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
   // Convert actual spending to positive for display
   summary.mtd.actualSpending = Math.abs(summary.mtd.actualSpending);
   summary.ytd.actualSpending = Math.abs(summary.ytd.actualSpending);
+  summary.mtd.yesterdaySpending = Math.abs(summary.mtd.yesterdaySpending);
+  summary.ytd.yesterdaySpending = Math.abs(summary.ytd.yesterdaySpending);
+
+  // Calculate spending change since yesterday
+  summary.mtd.spendingChange = summary.mtd.actualSpending - summary.mtd.yesterdaySpending;
+  summary.ytd.spendingChange = summary.ytd.actualSpending - summary.ytd.yesterdaySpending;
 
   // Calculate MTD % Budget Spent: (Actual / Budget) × 100
   summary.mtd.pace = summary.mtd.variableBudget > 0 ? (summary.mtd.actualSpending / summary.mtd.variableBudget) * 100 : 0;
@@ -742,7 +761,12 @@ function formatEmailBody(summary, cashHistory) {
                 </td>
               </tr>
               <tr>
-                <td class="row-label">Actual Spending</td>
+                <td class="row-label">
+                  Actual Spending
+                  <div class="budget-explanation">
+                    +${formatCurrency(summary.mtd.spendingChange)} since yesterday
+                  </div>
+                </td>
                 <td class="amount" style="color: #374151;">
                   ${formatCurrency(summary.mtd.actualSpending)}
                 </td>
