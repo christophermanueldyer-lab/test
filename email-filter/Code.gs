@@ -113,7 +113,7 @@ function processEmail(message, results, forceProcess = false) {
 
     Logger.log(`Processing: ${sender} - ${subject}`);
 
-    // Skip Yutori and Daily Finance Update emails when unread - they're handled separately
+    // Skip Yutori, Daily Finance Update, and Email Filter Summary emails when unread - they're handled separately
     if (!forceProcess && message.isUnread()) {
       if (sender.includes('notifications@yutori.com')) {
         Logger.log(`Skipping unread Yutori email - will process after being read`);
@@ -121,6 +121,10 @@ function processEmail(message, results, forceProcess = false) {
       }
       if (subject.includes('Daily Finance Update')) {
         Logger.log(`Skipping unread Daily Finance Update - will process after being read`);
+        return;
+      }
+      if (subject.includes('Email Filter Summary')) {
+        Logger.log(`Skipping unread Email Filter Summary - will process after being read`);
         return;
       }
     }
