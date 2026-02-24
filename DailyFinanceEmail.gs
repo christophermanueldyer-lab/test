@@ -778,7 +778,7 @@ function formatEmailBody(summary, cashHistory) {
                 <td class="row-label">
                   % Budget Spent
                   <div class="budget-explanation">
-                    Pacing target: ${formatPace(summary.mtd.pacingTarget)}
+                    MTD pacing target: ${formatPace(summary.mtd.pacingTarget)}
                   </div>
                 </td>
                 <td class="amount" style="color: ${getPaceColor(summary.mtd.pace)};">
