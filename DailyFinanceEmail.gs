@@ -341,7 +341,7 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
       pacingTarget: (yesterdayDay / daysInMonth) * 100  // How far through the month we are
     },
     ytd: {
-      variableBudget: monthlyVariableBudget * (currentMonth + 1),  // Month number (1-12)
+      variableBudget: monthlyVariableBudget * currentMonth + (currentDay / daysInMonth) * monthlyVariableBudget,  // Completed months + prorated current month
       actualSpending: 0,
       yesterdaySpending: 0,  // YTD spending as of end of yesterday
       pace: 0
