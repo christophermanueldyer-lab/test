@@ -662,7 +662,7 @@ function formatEmailBody(summary, cashHistory, investmentBalances) {
       }
     };
 
-    const chartUrl = 'https://quickchart.io/chart?c=' + encodeURIComponent(JSON.stringify(chartConfig)) + '&width=550&height=250&devicePixelRatio=2';
+    const chartUrl = 'https://quickchart.io/chart?c=' + encodeURIComponent(JSON.stringify(chartConfig)) + '&width=500&height=200&devicePixelRatio=1';
 
     return `
       <div class="chart-section">
