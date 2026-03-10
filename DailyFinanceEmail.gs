@@ -35,9 +35,13 @@ const CONFIG = {
   cashHistorySheet: 'Cash Balance Trend',  // Sheet to log daily balances
 
   // Investment account tracking
+  balancesSheet: 'Balances',  // Sheet name containing account balances
+  balancesAccountNumberColumn: 'C',  // Column containing account numbers (e.g., "9940", "5831")
+  balancesBalanceColumn: 'D',  // Column containing balance values
+  balancesStartRow: 10,  // First row to start searching for accounts
   investmentAccounts: [
-    { name: 'Stock Plan (ROKU)', balanceCell: 'Balances!D11', accountNumber: '9940' },
-    { name: 'SoFi Robo', balanceCell: 'Balances!D17', accountNumber: '5831' }
+    { name: 'Stock Plan (ROKU)', accountNumber: '9940' },
+    { name: 'SoFi Robo', accountNumber: '5831' }
   ],
   investmentHistorySheet: 'Investment Balance Trend',  // Sheet to log daily investment balances
 
@@ -134,6 +138,35 @@ function testEmail() {
 // ============================================================================
 
 /**
+ * Find account balance by account number in the Balances sheet
+ */
+function getAccountBalanceByNumber(ss, accountNumber) {
+  const balancesSheet = ss.getSheetByName(CONFIG.balancesSheet);
+  if (!balancesSheet) {
+    throw new Error(`Balances sheet "${CONFIG.balancesSheet}" not found`);
+  }
+
+  const dataRange = balancesSheet.getDataRange();
+  const values = dataRange.getValues();
+
+  // Search for the account number starting from the configured start row
+  for (let i = CONFIG.balancesStartRow - 1; i < values.length; i++) {
+    const accountNumCol = CONFIG.balancesAccountNumberColumn.charCodeAt(0) - 65; // Convert 'C' to column index
+    const balanceCol = CONFIG.balancesBalanceColumn.charCodeAt(0) - 65; // Convert 'D' to column index
+
+    const cellAccountNumber = String(values[i][accountNumCol]).trim();
+
+    if (cellAccountNumber === accountNumber) {
+      const balance = parseFloat(values[i][balanceCol]);
+      return isNaN(balance) ? 0 : balance;
+    }
+  }
+
+  Logger.log(`Warning: Account number ${accountNumber} not found in Balances sheet`);
+  return 0;
+}
+
+/**
  * Log today's cash balance to the history sheet
  */
 function logDailyCashBalance() {
@@ -151,10 +184,8 @@ function logDailyCashBalance() {
     // Subtract investment account balances to get cash-only balance
     let cashBalance = totalBalance;
     CONFIG.investmentAccounts.forEach(account => {
-      const investmentValue = parseFloat(ss.getRange(account.balanceCell).getValue());
-      if (!isNaN(investmentValue)) {
-        cashBalance -= investmentValue;
-      }
+      const investmentValue = getAccountBalanceByNumber(ss, account.accountNumber);
+      cashBalance -= investmentValue;
     });
 
     // Get the history sheet
@@ -212,8 +243,7 @@ function logDailyInvestmentBalances() {
 
     // Read current balances for each account
     const balances = CONFIG.investmentAccounts.map(account => {
-      const value = parseFloat(ss.getRange(account.balanceCell).getValue());
-      return isNaN(value) ? 0 : value;
+      return getAccountBalanceByNumber(ss, account.accountNumber);
     });
 
     // Get today's date
@@ -256,11 +286,10 @@ function getInvestmentBalances() {
 
   // Read current balances
   const accounts = CONFIG.investmentAccounts.map(account => {
-    const value = parseFloat(ss.getRange(account.balanceCell).getValue());
     return {
       name: account.name,
       accountNumber: account.accountNumber,
-      balance: isNaN(value) ? 0 : value,
+      balance: getAccountBalanceByNumber(ss, account.accountNumber),
       dayOverDayPct: null
     };
   });
