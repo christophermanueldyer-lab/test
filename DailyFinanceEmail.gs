@@ -34,6 +34,13 @@ const CONFIG = {
   cashBalanceCell: 'Balances!D9',  // Current total cash balance
   cashHistorySheet: 'Cash Balance Trend',  // Sheet to log daily balances
 
+  // Investment account tracking
+  investmentAccounts: [
+    { name: 'Stock Plan (ROKU)', balanceCell: 'Balances!D40', accountNumber: '9940' },
+    { name: 'SoFi Robo', balanceCell: 'Balances!D41', accountNumber: '5831' }
+  ],
+  investmentHistorySheet: 'Investment Balance Trend',  // Sheet to log daily investment balances
+
   // Column names in your Google Sheet
   // Note: Column K should contain either "Income" or "Expense"
   columns: {
@@ -62,14 +69,16 @@ const CONFIG = {
  */
 function sendDailyFinanceEmail() {
   try {
-    // Log today's cash balance first
+    // Log today's balances first
     logDailyCashBalance();
+    logDailyInvestmentBalances();
 
     const variableBudget = getVariableBudget();
     const data = getTransactionData();
     const summary = calculateFinancialSummary(data, variableBudget);
     const cashHistory = getCashBalanceHistory();
-    const emailBody = formatEmailBody(summary, cashHistory);
+    const investmentBalances = getInvestmentBalances();
+    const emailBody = formatEmailBody(summary, cashHistory, investmentBalances);
 
     MailApp.sendEmail({
       to: CONFIG.recipientEmail,
@@ -174,6 +183,101 @@ function logDailyCashBalance() {
     Logger.log('Error logging cash balance: ' + error.toString());
     // Don't throw - we don't want to break the email if logging fails
   }
+}
+
+/**
+ * Log today's investment balances to the history sheet
+ */
+function logDailyInvestmentBalances() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  try {
+    // Get or create the history sheet
+    let historySheet = ss.getSheetByName(CONFIG.investmentHistorySheet);
+    if (!historySheet) {
+      historySheet = ss.insertSheet(CONFIG.investmentHistorySheet);
+      // Add headers: Date, then one column per account
+      const headers = ['Date'].concat(CONFIG.investmentAccounts.map(a => a.name));
+      historySheet.appendRow(headers);
+    }
+
+    // Read current balances for each account
+    const balances = CONFIG.investmentAccounts.map(account => {
+      const value = parseFloat(ss.getRange(account.balanceCell).getValue());
+      return isNaN(value) ? 0 : value;
+    });
+
+    // Get today's date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Check if today's date already exists
+    const dataRange = historySheet.getDataRange();
+    const values = dataRange.getValues();
+
+    for (let i = 1; i < values.length; i++) {
+      const rowDate = new Date(values[i][0]);
+      rowDate.setHours(0, 0, 0, 0);
+
+      if (rowDate.getTime() === today.getTime()) {
+        // Already logged today, update balances
+        for (let j = 0; j < balances.length; j++) {
+          historySheet.getRange(i + 1, j + 2).setValue(balances[j]);
+        }
+        Logger.log('Updated investment balances for ' + today.toDateString());
+        return;
+      }
+    }
+
+    // Not logged yet, append new row
+    historySheet.appendRow([today].concat(balances));
+    Logger.log('Logged new investment balances for ' + today.toDateString());
+
+  } catch (error) {
+    Logger.log('Error logging investment balances: ' + error.toString());
+  }
+}
+
+/**
+ * Get current investment balances and day-over-day change
+ */
+function getInvestmentBalances() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const historySheet = ss.getSheetByName(CONFIG.investmentHistorySheet);
+
+  // Read current balances
+  const accounts = CONFIG.investmentAccounts.map(account => {
+    const value = parseFloat(ss.getRange(account.balanceCell).getValue());
+    return {
+      name: account.name,
+      accountNumber: account.accountNumber,
+      balance: isNaN(value) ? 0 : value,
+      dayOverDayPct: null
+    };
+  });
+
+  // Calculate day-over-day change from history sheet
+  if (historySheet) {
+    const dataRange = historySheet.getDataRange();
+    const values = dataRange.getValues();
+
+    if (values.length >= 3) {  // Header + at least 2 days of data
+      // Get the two most recent rows
+      const latestRow = values[values.length - 1];
+      const previousRow = values[values.length - 2];
+
+      for (let i = 0; i < accounts.length; i++) {
+        const currentVal = parseFloat(latestRow[i + 1]);
+        const previousVal = parseFloat(previousRow[i + 1]);
+
+        if (!isNaN(currentVal) && !isNaN(previousVal) && previousVal !== 0) {
+          accounts[i].dayOverDayPct = ((currentVal - previousVal) / Math.abs(previousVal)) * 100;
+        }
+      }
+    }
+  }
+
+  return accounts;
 }
 
 /**
@@ -425,7 +529,7 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
 /**
  * Format the email body with financial summary as a mobile-friendly table
  */
-function formatEmailBody(summary, cashHistory) {
+function formatEmailBody(summary, cashHistory, investmentBalances) {
   const now = new Date();
   const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'EEEE, MMMM dd, yyyy');
 
@@ -527,6 +631,56 @@ function formatEmailBody(summary, cashHistory) {
             Current: ${formatCurrency(data[data.length - 1])} • Low: ${formatCurrency(minBalance)} • High: ${formatCurrency(maxBalance)}
           </div>
         </div>
+      </div>
+    `;
+  };
+
+  const buildInvestmentBalancesTable = (investmentBalances) => {
+    if (!investmentBalances || investmentBalances.length === 0) {
+      return '';
+    }
+
+    const rows = investmentBalances.map(account => {
+      let changeDisplay = '—';
+      let changeColor = '#9CA3AF';
+
+      if (account.dayOverDayPct !== null) {
+        const sign = account.dayOverDayPct >= 0 ? '+' : '';
+        changeDisplay = sign + account.dayOverDayPct.toFixed(2) + '%';
+        changeColor = account.dayOverDayPct >= 0 ? '#059669' : '#DC2626';
+      }
+
+      return `
+        <tr>
+          <td class="row-label">
+            ${account.name}
+            <div class="budget-explanation">${account.accountNumber}</div>
+          </td>
+          <td class="amount" style="color: #374151;">
+            ${formatCurrency(account.balance)}
+          </td>
+          <td class="amount" style="color: ${changeColor};">
+            ${changeDisplay}
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="chart-section">
+        <h2 class="section-title">📊 Investment Balances</h2>
+        <table class="finance-table">
+          <thead>
+            <tr>
+              <th style="width: 40%;">Account</th>
+              <th style="width: 30%; text-align: right;">Balance</th>
+              <th style="width: 30%; text-align: right;">Day / Day</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
       </div>
     `;
   };
@@ -794,6 +948,9 @@ function formatEmailBody(summary, cashHistory) {
 
         <!-- Cash Balance Chart -->
         ${buildCashBalanceChart(cashHistory)}
+
+        <!-- Investment Balances -->
+        ${buildInvestmentBalancesTable(investmentBalances)}
 
         <!-- Large Expenses from Last 3 Days -->
         <div class="large-expenses-section">
