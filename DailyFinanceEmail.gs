@@ -36,8 +36,8 @@ const CONFIG = {
 
   // Investment account tracking
   investmentAccounts: [
-    { name: 'Stock Plan (ROKU)', balanceCell: 'Balances!D40', accountNumber: '9940' },
-    { name: 'SoFi Robo', balanceCell: 'Balances!D41', accountNumber: '5831' }
+    { name: 'Stock Plan (ROKU)', balanceCell: 'Balances!D11', accountNumber: '9940' },
+    { name: 'SoFi Robo', balanceCell: 'Balances!D17', accountNumber: '5831' }
   ],
   investmentHistorySheet: 'Investment Balance Trend',  // Sheet to log daily investment balances
 
@@ -140,13 +140,22 @@ function logDailyCashBalance() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   try {
-    // Get current cash balance
-    const balanceRange = ss.getRange(CONFIG.cashBalanceCell);
-    const balance = parseFloat(balanceRange.getValue());
+    // Get current total balance from D9
+    const totalBalanceRange = ss.getRange(CONFIG.cashBalanceCell);
+    const totalBalance = parseFloat(totalBalanceRange.getValue());
 
-    if (isNaN(balance)) {
+    if (isNaN(totalBalance)) {
       throw new Error(`Cash balance cell "${CONFIG.cashBalanceCell}" does not contain a valid number`);
     }
+
+    // Subtract investment account balances to get cash-only balance
+    let cashBalance = totalBalance;
+    CONFIG.investmentAccounts.forEach(account => {
+      const investmentValue = parseFloat(ss.getRange(account.balanceCell).getValue());
+      if (!isNaN(investmentValue)) {
+        cashBalance -= investmentValue;
+      }
+    });
 
     // Get the history sheet
     const historySheet = ss.getSheetByName(CONFIG.cashHistorySheet);
@@ -169,15 +178,15 @@ function logDailyCashBalance() {
 
       if (rowDate.getTime() === today.getTime()) {
         // Already logged today, update the balance instead of adding new row
-        historySheet.getRange(i + 1, 2).setValue(balance);
-        Logger.log(`Updated cash balance for ${today.toDateString()}: ${balance}`);
+        historySheet.getRange(i + 1, 2).setValue(cashBalance);
+        Logger.log(`Updated cash balance for ${today.toDateString()}: ${cashBalance}`);
         return;
       }
     }
 
     // Not logged yet, append new row
-    historySheet.appendRow([today, balance]);
-    Logger.log(`Logged new cash balance for ${today.toDateString()}: ${balance}`);
+    historySheet.appendRow([today, cashBalance]);
+    Logger.log(`Logged new cash balance for ${today.toDateString()}: ${cashBalance}`);
 
   } catch (error) {
     Logger.log('Error logging cash balance: ' + error.toString());
