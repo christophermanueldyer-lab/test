@@ -36,7 +36,7 @@ const CONFIG = {
 
   // Investment account tracking
   balancesSheet: 'Balances',  // Sheet name containing account balances
-  balancesAccountNumberColumn: 'C',  // Column containing account numbers (e.g., "9940", "5831")
+  balancesAccountNameColumn: 'B',  // Column containing account names with numbers like "Stock Plan (ROKU) -9940 (9940)"
   balancesBalanceColumn: 'D',  // Column containing balance values
   balancesStartRow: 10,  // First row to start searching for accounts
   investmentAccounts: [
@@ -139,6 +139,7 @@ function testEmail() {
 
 /**
  * Find account balance by account number in the Balances sheet
+ * Searches for account number in parentheses, e.g., "(9940)" or "(5831)"
  */
 function getAccountBalanceByNumber(ss, accountNumber) {
   const balancesSheet = ss.getSheetByName(CONFIG.balancesSheet);
@@ -149,14 +150,17 @@ function getAccountBalanceByNumber(ss, accountNumber) {
   const dataRange = balancesSheet.getDataRange();
   const values = dataRange.getValues();
 
-  // Search for the account number starting from the configured start row
+  // Search for the account number pattern (XXXX) in the account name column
+  const searchPattern = `(${accountNumber})`;
+
   for (let i = CONFIG.balancesStartRow - 1; i < values.length; i++) {
-    const accountNumCol = CONFIG.balancesAccountNumberColumn.charCodeAt(0) - 65; // Convert 'C' to column index
+    const accountNameCol = CONFIG.balancesAccountNameColumn.charCodeAt(0) - 65; // Convert 'B' to column index
     const balanceCol = CONFIG.balancesBalanceColumn.charCodeAt(0) - 65; // Convert 'D' to column index
 
-    const cellAccountNumber = String(values[i][accountNumCol]).trim();
+    const cellAccountName = String(values[i][accountNameCol]).trim();
 
-    if (cellAccountNumber === accountNumber) {
+    // Check if the account name contains the pattern "(9940)" or "(5831)"
+    if (cellAccountName.includes(searchPattern)) {
       const balance = parseFloat(values[i][balanceCol]);
       return isNaN(balance) ? 0 : balance;
     }
