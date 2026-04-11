@@ -473,10 +473,11 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
   // Days in current month
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
 
-  // Yesterday's date (for pacing target calculation)
+  // Yesterday's date boundaries (for spending change calculation)
   const yesterday = new Date(currentYear, currentMonth, currentDay - 1);
   const yesterdayDay = yesterday.getDate();
-  const yesterdayEnd = new Date(currentYear, currentMonth, currentDay);
+  const yesterdayStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+  const yesterdayEnd = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate() + 1); // Start of today
 
   const summary = {
     mtd: {
