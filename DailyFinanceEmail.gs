@@ -32,7 +32,7 @@ const CONFIG = {
 
   // Cash balance tracking
   cashBalanceCell: 'Balances!D9',  // Current total cash balance
-  cashHistorySheet: 'Cash Balance Trend',  // Sheet to log daily balances
+  cashHistorySheet: 'Cash Balance Trend',  // Sheet to log daily balances and MTD spending
 
   // Investment account tracking
   balancesSheet: 'Balances',  // Sheet name containing account balances
@@ -44,9 +44,6 @@ const CONFIG = {
     { name: 'SoFi Robo', accountNumber: '5831' }
   ],
   investmentHistorySheet: 'Investment Balance Trend',  // Sheet to log daily investment balances
-
-  // Spending tracking
-  spendingHistorySheet: 'Spending History',  // Sheet to log daily MTD spending
 
   // Column names in your Google Sheet
   // Note: Column K should contain either "Income" or "Expense"
@@ -330,24 +327,28 @@ function getInvestmentBalances() {
 }
 
 /**
- * Log today's MTD spending to the history sheet
+ * Log today's MTD spending to the Cash Balance Trend sheet (column C)
  */
 function logDailySpending(mtdSpending) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   try {
-    // Get or create the history sheet
-    let historySheet = ss.getSheetByName(CONFIG.spendingHistorySheet);
+    const historySheet = ss.getSheetByName(CONFIG.cashHistorySheet);
     if (!historySheet) {
-      historySheet = ss.insertSheet(CONFIG.spendingHistorySheet);
-      historySheet.appendRow(['Date', 'MTD Spending']);
+      throw new Error(`History sheet "${CONFIG.cashHistorySheet}" not found`);
+    }
+
+    // Check if we need to add the MTD Spending header in column C
+    const headerRange = historySheet.getRange(1, 3);
+    if (!headerRange.getValue()) {
+      headerRange.setValue('MTD Spending');
     }
 
     // Get today's date
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // Check if today's date already exists
+    // Check if today's date already exists in column A
     const dataRange = historySheet.getDataRange();
     const values = dataRange.getValues();
 
@@ -356,16 +357,14 @@ function logDailySpending(mtdSpending) {
       rowDate.setHours(0, 0, 0, 0);
 
       if (rowDate.getTime() === today.getTime()) {
-        // Already logged today, update the spending
-        historySheet.getRange(i + 1, 2).setValue(mtdSpending);
+        // Already logged today, update the spending in column C
+        historySheet.getRange(i + 1, 3).setValue(mtdSpending);
         Logger.log('Updated MTD spending for ' + today.toDateString() + ': ' + mtdSpending);
         return;
       }
     }
 
-    // Not logged yet, append new row
-    historySheet.appendRow([today, mtdSpending]);
-    Logger.log('Logged new MTD spending for ' + today.toDateString() + ': ' + mtdSpending);
+    Logger.log('Warning: No cash balance entry found for today. MTD spending not logged.');
 
   } catch (error) {
     Logger.log('Error logging MTD spending: ' + error.toString());
@@ -373,11 +372,11 @@ function logDailySpending(mtdSpending) {
 }
 
 /**
- * Get yesterday's MTD spending from history
+ * Get yesterday's MTD spending from Cash Balance Trend sheet (column C)
  */
 function getYesterdaySpending() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const historySheet = ss.getSheetByName(CONFIG.spendingHistorySheet);
+  const historySheet = ss.getSheetByName(CONFIG.cashHistorySheet);
 
   if (!historySheet) {
     return null;
@@ -395,13 +394,13 @@ function getYesterdaySpending() {
   yesterday.setDate(yesterday.getDate() - 1);
   yesterday.setHours(0, 0, 0, 0);
 
-  // Search for yesterday's spending
+  // Search for yesterday's spending in column C
   for (let i = 1; i < values.length; i++) {
     const rowDate = new Date(values[i][0]);
     rowDate.setHours(0, 0, 0, 0);
 
     if (rowDate.getTime() === yesterday.getTime()) {
-      const spending = parseFloat(values[i][1]);
+      const spending = parseFloat(values[i][2]);  // Column C (index 2)
       return isNaN(spending) ? null : spending;
     }
   }
