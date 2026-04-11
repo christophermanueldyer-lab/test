@@ -45,6 +45,9 @@ const CONFIG = {
   ],
   investmentHistorySheet: 'Investment Balance Trend',  // Sheet to log daily investment balances
 
+  // Spending tracking
+  spendingHistorySheet: 'Spending History',  // Sheet to log daily MTD spending
+
   // Column names in your Google Sheet
   // Note: Column K should contain either "Income" or "Expense"
   columns: {
@@ -80,6 +83,10 @@ function sendDailyFinanceEmail() {
     const variableBudget = getVariableBudget();
     const data = getTransactionData();
     const summary = calculateFinancialSummary(data, variableBudget);
+
+    // Log today's MTD spending for tomorrow's comparison
+    logDailySpending(summary.mtd.actualSpending);
+
     const cashHistory = getCashBalanceHistory();
     const investmentBalances = getInvestmentBalances();
     const emailBody = formatEmailBody(summary, cashHistory, investmentBalances);
@@ -323,6 +330,86 @@ function getInvestmentBalances() {
 }
 
 /**
+ * Log today's MTD spending to the history sheet
+ */
+function logDailySpending(mtdSpending) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  try {
+    // Get or create the history sheet
+    let historySheet = ss.getSheetByName(CONFIG.spendingHistorySheet);
+    if (!historySheet) {
+      historySheet = ss.insertSheet(CONFIG.spendingHistorySheet);
+      historySheet.appendRow(['Date', 'MTD Spending']);
+    }
+
+    // Get today's date
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // Check if today's date already exists
+    const dataRange = historySheet.getDataRange();
+    const values = dataRange.getValues();
+
+    for (let i = 1; i < values.length; i++) {
+      const rowDate = new Date(values[i][0]);
+      rowDate.setHours(0, 0, 0, 0);
+
+      if (rowDate.getTime() === today.getTime()) {
+        // Already logged today, update the spending
+        historySheet.getRange(i + 1, 2).setValue(mtdSpending);
+        Logger.log('Updated MTD spending for ' + today.toDateString() + ': ' + mtdSpending);
+        return;
+      }
+    }
+
+    // Not logged yet, append new row
+    historySheet.appendRow([today, mtdSpending]);
+    Logger.log('Logged new MTD spending for ' + today.toDateString() + ': ' + mtdSpending);
+
+  } catch (error) {
+    Logger.log('Error logging MTD spending: ' + error.toString());
+  }
+}
+
+/**
+ * Get yesterday's MTD spending from history
+ */
+function getYesterdaySpending() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const historySheet = ss.getSheetByName(CONFIG.spendingHistorySheet);
+
+  if (!historySheet) {
+    return null;
+  }
+
+  const dataRange = historySheet.getDataRange();
+  const values = dataRange.getValues();
+
+  if (values.length < 2) {
+    return null;
+  }
+
+  // Get yesterday's date
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(0, 0, 0, 0);
+
+  // Search for yesterday's spending
+  for (let i = 1; i < values.length; i++) {
+    const rowDate = new Date(values[i][0]);
+    rowDate.setHours(0, 0, 0, 0);
+
+    if (rowDate.getTime() === yesterday.getTime()) {
+      const spending = parseFloat(values[i][1]);
+      return isNaN(spending) ? null : spending;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Get cash balance history for the last 90 days
  */
 function getCashBalanceHistory() {
@@ -479,11 +566,14 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
   const yesterdayStart = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
   const yesterdayEnd = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate() + 1); // Start of today
 
+  // Get yesterday's logged MTD spending from history
+  const yesterdayMtdSpending = getYesterdaySpending();
+
   const summary = {
     mtd: {
       variableBudget: monthlyVariableBudget,
       actualSpending: 0,
-      yesterdaySpending: 0,  // MTD spending as of end of yesterday
+      yesterdaySpending: yesterdayMtdSpending,  // Yesterday's logged MTD spending from email
       pace: 0,
       pacingTarget: (yesterdayDay / daysInMonth) * 100  // How far through the month we are
     },
@@ -506,21 +596,11 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
     // Year-to-Date actual spending (all expenses)
     if (t.date >= yearStart && !isIncome) {
       summary.ytd.actualSpending += t.amount;  // Sum raw amounts (negative expenses, positive refunds)
-
-      // YTD spending as of end of yesterday
-      if (t.date < yesterdayEnd) {
-        summary.ytd.yesterdaySpending += t.amount;
-      }
     }
 
     // Month-to-Date actual spending (all expenses)
     if (t.date >= monthStart && !isIncome) {
       summary.mtd.actualSpending += t.amount;  // Sum raw amounts (negative expenses, positive refunds)
-
-      // MTD spending as of end of yesterday
-      if (t.date < yesterdayEnd) {
-        summary.mtd.yesterdaySpending += t.amount;
-      }
 
       // Track large expenses from this month (> $1000)
       const absAmount = Math.abs(t.amount);
@@ -553,12 +633,13 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
   // Convert actual spending to positive for display
   summary.mtd.actualSpending = Math.abs(summary.mtd.actualSpending);
   summary.ytd.actualSpending = Math.abs(summary.ytd.actualSpending);
-  summary.mtd.yesterdaySpending = Math.abs(summary.mtd.yesterdaySpending);
-  summary.ytd.yesterdaySpending = Math.abs(summary.ytd.yesterdaySpending);
 
-  // Calculate spending change since yesterday
-  summary.mtd.spendingChange = summary.mtd.actualSpending - summary.mtd.yesterdaySpending;
-  summary.ytd.spendingChange = summary.ytd.actualSpending - summary.ytd.yesterdaySpending;
+  // Calculate spending change since yesterday (from logged history)
+  if (summary.mtd.yesterdaySpending !== null) {
+    summary.mtd.spendingChange = summary.mtd.actualSpending - summary.mtd.yesterdaySpending;
+  } else {
+    summary.mtd.spendingChange = null;  // No history yet
+  }
 
   // Calculate MTD % Budget Spent: (Actual / Budget) × 100
   summary.mtd.pace = summary.mtd.variableBudget > 0 ? (summary.mtd.actualSpending / summary.mtd.variableBudget) * 100 : 0;
@@ -961,7 +1042,7 @@ function formatEmailBody(summary, cashHistory, investmentBalances) {
                 <td class="row-label">
                   Actual Spending
                   <div class="budget-explanation">
-                    +${formatCurrency(summary.mtd.spendingChange)} since yesterday
+                    ${summary.mtd.spendingChange !== null ? '+' + formatCurrency(summary.mtd.spendingChange) + ' since yesterday' : 'Building history...'}
                   </div>
                 </td>
                 <td class="amount" style="color: #374151;">
