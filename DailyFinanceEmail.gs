@@ -45,6 +45,30 @@ const CONFIG = {
   ],
   investmentHistorySheet: 'Investment Balance Trend',  // Sheet to log daily investment balances
 
+  // Monthly total budget target
+  monthlyTotalBudget: 6893.75,
+
+  // Category budgets (must sum to monthlyTotalBudget)
+  categoryBudgets: {
+    'Groceries': { budget: 1200, tier: 2, plaidPrefix: 'FOOD_AND_DRINK', subcategory: 'groceries' },
+    'Dining Out': { budget: 600, tier: 1, plaidPrefix: 'FOOD_AND_DRINK', subcategory: 'dining' },
+    'DoorDash': { budget: 0, tier: 1, plaidPrefix: 'FOOD_AND_DRINK', subcategory: 'doordash' },
+    'Food Other': { budget: 100, tier: 1, plaidPrefix: 'FOOD_AND_DRINK', subcategory: 'other' },
+    'General Merchandise': { budget: 1800, tier: 1, plaidPrefix: 'GENERAL_MERCHANDISE' },
+    'Transfer Out': { budget: 1067, tier: 2, plaidPrefix: 'TRANSFER_OUT' },
+    'Rent & Utilities': { budget: 1006, tier: 3, plaidPrefix: 'RENT_AND_UTILITIES' },
+    'General Services': { budget: 400, tier: 2, plaidPrefix: 'GENERAL_SERVICES' },
+    'Personal Care': { budget: 300, tier: 2, plaidPrefix: 'PERSONAL_CARE' },
+    'Transportation': { budget: 363, tier: 3, plaidPrefix: 'TRANSPORTATION' },
+    'Entertainment': { budget: 150, tier: 2, plaidPrefix: 'ENTERTAINMENT' },
+    'Loan Payments': { budget: 221, tier: 3, plaidPrefix: 'LOAN_PAYMENTS' },
+    'Home Improvement': { budget: 75, tier: 2, plaidPrefix: 'HOME_IMPROVEMENT' },
+    'Medical': { budget: 58, tier: 3, plaidPrefix: 'MEDICAL' },
+    'Government & Non-Profit': { budget: 53, tier: 3, plaidPrefix: 'GOVERNMENT_AND_NON_PROFIT' },
+    'Bank Fees': { budget: 20, tier: 3, plaidPrefix: 'BANK_FEES' },
+    'Travel': { budget: 10.75, tier: 3, plaidPrefix: 'TRAVEL' }
+  },
+
   // Column names in your Google Sheet
   // Note: Column K should contain either "Income" or "Expense"
   columns: {
@@ -53,7 +77,8 @@ const CONFIG = {
     amount: 'Amount',
     account: 'Account',
     accountNumber: 'Account #',
-    incomeOrExpense: 'Income Or Expense'  // Column K in your sheet
+    incomeOrExpense: 'Income Or Expense',  // Column K in your sheet
+    categoryHint: 'Category Hint'  // Column P - Plaid category in format "TOP_LEVEL:SUBCATEGORY"
   },
 
   // Time to send daily email (24-hour format)
@@ -80,13 +105,14 @@ function sendDailyFinanceEmail() {
     const variableBudget = getVariableBudget();
     const data = getTransactionData();
     const summary = calculateFinancialSummary(data, variableBudget);
+    const categorySpending = calculateCategorySpending(data);
 
     // Log today's MTD spending for tomorrow's comparison
     logDailySpending(summary.mtd.actualSpending);
 
     const cashHistory = getCashBalanceHistory();
     const investmentBalances = getInvestmentBalances();
-    const emailBody = formatEmailBody(summary, cashHistory, investmentBalances);
+    const emailBody = formatEmailBody(summary, cashHistory, investmentBalances, categorySpending);
 
     MailApp.sendEmail({
       to: CONFIG.recipientEmail,
@@ -498,6 +524,7 @@ function getTransactionData() {
   const accountCol = headers.indexOf(CONFIG.columns.account);
   const accountNumCol = headers.indexOf(CONFIG.columns.accountNumber);
   const typeCol = headers.indexOf(CONFIG.columns.incomeOrExpense);
+  const categoryCol = headers.indexOf(CONFIG.columns.categoryHint);
 
   if (dateCol === -1 || amountCol === -1 || typeCol === -1) {
     throw new Error('Required columns (Date, Amount, Income Or Expense) not found. Please check CONFIG.columns settings');
@@ -524,17 +551,105 @@ function getTransactionData() {
       continue;
     }
 
+    const categoryHint = categoryCol !== -1 ? String(row[categoryCol]).trim() : '';
+
     transactions.push({
       date: date,
       description: description,
       amount: amount,
       account: account,
       accountNumber: accountNumber,
-      type: type
+      type: type,
+      categoryHint: categoryHint
     });
   }
 
   return transactions;
+}
+
+/**
+ * Categorize a transaction based on Plaid category hint and description
+ * Returns the budget category name or 'Other' if no match
+ */
+function categorizeTransaction(transaction) {
+  const categoryHint = transaction.categoryHint.toUpperCase();
+  const description = transaction.description.toLowerCase();
+
+  // Extract top-level Plaid category (before the colon)
+  const topLevel = categoryHint.split(':')[0];
+
+  // Special handling for FOOD_AND_DRINK subcategories
+  if (topLevel === 'FOOD_AND_DRINK') {
+    // DoorDash takes priority
+    if (description.includes('doordash') || description.includes('door dash')) {
+      return 'DoorDash';
+    }
+
+    // Get Plaid subcategory (after the colon)
+    const subCategory = categoryHint.split(':')[1] || '';
+
+    // Groceries
+    if (subCategory === 'FOOD_AND_DRINK_GROCERIES') {
+      return 'Groceries';
+    }
+
+    // Dining Out (restaurant, fast food, coffee - but NOT DoorDash)
+    if (subCategory === 'FOOD_AND_DRINK_RESTAURANT' ||
+        subCategory === 'FOOD_AND_DRINK_FAST_FOOD' ||
+        subCategory === 'FOOD_AND_DRINK_COFFEE') {
+      return 'Dining Out';
+    }
+
+    // Everything else in FOOD_AND_DRINK goes to Food Other
+    return 'Food Other';
+  }
+
+  // Map top-level Plaid categories to budget categories
+  const categoryMap = {
+    'GENERAL_MERCHANDISE': 'General Merchandise',
+    'TRANSFER_OUT': 'Transfer Out',
+    'RENT_AND_UTILITIES': 'Rent & Utilities',
+    'GENERAL_SERVICES': 'General Services',
+    'PERSONAL_CARE': 'Personal Care',
+    'TRANSPORTATION': 'Transportation',
+    'ENTERTAINMENT': 'Entertainment',
+    'LOAN_PAYMENTS': 'Loan Payments',
+    'HOME_IMPROVEMENT': 'Home Improvement',
+    'MEDICAL': 'Medical',
+    'GOVERNMENT_AND_NON_PROFIT': 'Government & Non-Profit',
+    'BANK_FEES': 'Bank Fees',
+    'TRAVEL': 'Travel'
+  };
+
+  return categoryMap[topLevel] || 'Other';
+}
+
+/**
+ * Calculate category-level spending for the current month
+ */
+function calculateCategorySpending(transactions) {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const monthStart = new Date(currentYear, currentMonth, 1);
+
+  // Initialize spending for each category
+  const categorySpending = {};
+  Object.keys(CONFIG.categoryBudgets).forEach(category => {
+    categorySpending[category] = 0;
+  });
+  categorySpending['Other'] = 0;
+
+  // Sum up expenses by category for current month
+  transactions.forEach(t => {
+    if (t.type === 'expense' && t.date >= monthStart) {
+      const category = categorizeTransaction(t);
+      const absAmount = Math.abs(t.amount);
+      categorySpending[category] = (categorySpending[category] || 0) + absAmount;
+    }
+  });
+
+  return categorySpending;
 }
 
 /**
@@ -652,7 +767,7 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
 /**
  * Format the email body with financial summary as a mobile-friendly table
  */
-function formatEmailBody(summary, cashHistory, investmentBalances) {
+function formatEmailBody(summary, cashHistory, investmentBalances, categorySpending) {
   const now = new Date();
   const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'EEEE, MMMM dd, yyyy');
 
@@ -671,6 +786,191 @@ function formatEmailBody(summary, cashHistory, investmentBalances) {
 
   const formatDate = (date) => {
     return Utilities.formatDate(date, Session.getScriptTimeZone(), 'MMM dd');
+  };
+
+  const generateSupportiveFeedback = (categorySpending) => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentDay = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), currentMonth + 1, 0).getDate();
+    const timeElapsed = (currentDay / daysInMonth) * 100;
+
+    // Calculate total spending vs budget
+    const totalSpent = Object.values(categorySpending).reduce((sum, amt) => sum + amt, 0);
+    const totalBudget = CONFIG.monthlyTotalBudget;
+    const projectedTotal = (totalSpent / currentDay) * daysInMonth;
+
+    // Find categories with issues (pace ratio > 1.0), sorted by dollar impact
+    const issues = [];
+    Object.keys(CONFIG.categoryBudgets).forEach(category => {
+      const budget = CONFIG.categoryBudgets[category].budget;
+      const spent = categorySpending[category] || 0;
+      const budgetConsumed = budget > 0 ? (spent / budget) * 100 : (spent > 0 ? 999 : 0);
+      const paceRatio = budgetConsumed / timeElapsed;
+
+      if (paceRatio > 1.0 && CONFIG.categoryBudgets[category].tier <= 2) {
+        issues.push({
+          category,
+          spent,
+          budget,
+          paceRatio,
+          dollarOverage: spent - (budget * (timeElapsed / 100))
+        });
+      }
+    });
+
+    // Sort by dollar overage (highest impact first)
+    issues.sort((a, b) => b.dollarOverage - a.dollarOverage);
+
+    // Build feedback message
+    let feedback = '<div style="background: #F0F9FF; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #667EEA;">';
+    feedback += '<div style="font-size: 18px; font-weight: 600; color: #374151; margin-bottom: 12px;">💬 Daily Budget Check-In</div>';
+
+    // Overall status
+    if (projectedTotal <= totalBudget * 0.95) {
+      feedback += `<p style="margin: 8px 0; color: #059669; font-weight: 500;">Great work! You're tracking ${formatCurrency(totalSpent)} of your ${formatCurrency(totalBudget)} monthly budget (${(totalSpent/totalBudget*100).toFixed(0)}% consumed with ${timeElapsed.toFixed(0)}% of the month elapsed). At this pace, you'll finish around ${formatCurrency(projectedTotal)} — well under target!</p>`;
+    } else if (projectedTotal <= totalBudget) {
+      feedback += `<p style="margin: 8px 0; color: #374151; font-weight: 500;">You're ${currentDay} days into the month with ${formatCurrency(totalSpent)} spent of your ${formatCurrency(totalBudget)} target. Current pace projects to ${formatCurrency(projectedTotal)} for the month.</p>`;
+    } else {
+      feedback += `<p style="margin: 8px 0; color: #DC2626; font-weight: 500;">Heads up — you're ${currentDay} days into the month with ${formatCurrency(totalSpent)} spent. At the current pace, you're projected to finish around ${formatCurrency(projectedTotal)}, which is ${formatCurrency(projectedTotal - totalBudget)} over your ${formatCurrency(totalBudget)} target.</p>`;
+    }
+
+    // Highlight top issue if any
+    if (issues.length > 0) {
+      const topIssue = issues[0];
+      const remaining = topIssue.budget - topIssue.spent;
+      const daysLeft = daysInMonth - currentDay;
+
+      feedback += `<p style="margin: 12px 0 8px 0; color: #374151;"><strong>${topIssue.category}</strong> is the main category to watch: `;
+      feedback += `${formatCurrency(topIssue.spent)} spent against a ${formatCurrency(topIssue.budget)} budget `;
+      feedback += `(${(topIssue.spent/topIssue.budget*100).toFixed(0)}% consumed with ${timeElapsed.toFixed(0)}% of the month done). `;
+
+      if (remaining > 0) {
+        const dailyBudget = remaining / daysLeft;
+        feedback += `You have ${formatCurrency(remaining)} left for the remaining ${daysLeft} days, or about ${formatCurrency(dailyBudget)}/day.`;
+      } else {
+        feedback += `This category is already over budget.`;
+      }
+      feedback += '</p>';
+
+      // Specific suggestions based on category
+      if (topIssue.category === 'DoorDash' && topIssue.spent > 0) {
+        feedback += '<p style="margin: 8px 0; color: #374151; font-style: italic;">💡 Skipping DoorDash saves ~$90 per order — that's a nice dinner out later this month.</p>';
+      } else if (topIssue.category === 'Dining Out') {
+        feedback += '<p style="margin: 8px 0; color: #374151; font-style: italic;">💡 Consider pickup instead of dining in, or cooking at home for the next few days to create some breathing room.</p>';
+      } else if (topIssue.category === 'General Merchandise') {
+        feedback += '<p style="margin: 8px 0; color: #374151; font-style: italic;">💡 Try the "one-week delay rule" — wait 7 days before non-essential purchases to see if you still want them.</p>';
+      }
+    }
+
+    // Celebrate wins
+    const underPace = [];
+    Object.keys(CONFIG.categoryBudgets).forEach(category => {
+      const budget = CONFIG.categoryBudgets[category].budget;
+      const spent = categorySpending[category] || 0;
+      if (budget > 0) {
+        const budgetConsumed = (spent / budget) * 100;
+        const paceRatio = budgetConsumed / timeElapsed;
+        if (paceRatio < 0.85 && CONFIG.categoryBudgets[category].tier <= 2) {
+          underPace.push(category);
+        }
+      }
+    });
+
+    if (underPace.length > 0) {
+      feedback += `<p style="margin: 12px 0 0 0; color: #059669; font-weight: 500;">🎉 Nice job keeping ${underPace.slice(0, 2).join(' and ')} under pace!</p>`;
+    }
+
+    // Check for DoorDash streak
+    if (!categorySpending['DoorDash'] || categorySpending['DoorDash'] === 0) {
+      feedback += `<p style="margin: 8px 0 0 0; color: #059669; font-weight: 500;">🏆 Zero DoorDash orders so far this month — keep it going!</p>`;
+    }
+
+    feedback += '</div>';
+    return feedback;
+  };
+
+  const buildCategoryTable = (categorySpending) => {
+    const now = new Date();
+    const currentDay = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const timeElapsed = (currentDay / daysInMonth) * 100;
+
+    let rows = '';
+    let totalSpent = 0;
+    let totalBudget = 0;
+
+    // Build rows for each category
+    Object.keys(CONFIG.categoryBudgets).forEach(category => {
+      const config = CONFIG.categoryBudgets[category];
+      const spent = categorySpending[category] || 0;
+      const budget = config.budget;
+      const remaining = budget - spent;
+      const pacePercent = budget > 0 ? (spent / budget) * 100 : 0;
+      const paceRatio = pacePercent / timeElapsed;
+
+      totalSpent += spent;
+      totalBudget += budget;
+
+      // Color coding based on pace ratio
+      let paceColor = '#374151';  // Black
+      if (paceRatio > 1.4) paceColor = '#DC2626';  // Red - significantly over
+      else if (paceRatio > 1.15) paceColor = '#F59E0B';  // Orange - over pace
+      else if (paceRatio < 0.85) paceColor = '#059669';  // Green - under pace
+
+      rows += `
+        <tr style="border-bottom: 1px solid #F3F4F6;">
+          <td style="padding: 12px; color: #374151;">${category}</td>
+          <td style="padding: 12px; text-align: right; color: #374151;">${formatCurrency(spent)}</td>
+          <td style="padding: 12px; text-align: right; color: #374151;">${formatCurrency(budget)}</td>
+          <td style="padding: 12px; text-align: right; color: ${remaining >= 0 ? '#374151' : '#DC2626'};">${formatCurrency(remaining)}</td>
+          <td style="padding: 12px; text-align: right; color: ${paceColor}; font-weight: 600;">${pacePercent.toFixed(0)}%</td>
+        </tr>
+      `;
+    });
+
+    // Add total row
+    const totalRemaining = totalBudget - totalSpent;
+    const totalPacePercent = (totalSpent / totalBudget) * 100;
+    const totalPaceRatio = totalPacePercent / timeElapsed;
+    let totalPaceColor = '#374151';
+    if (totalPaceRatio > 1.15) totalPaceColor = '#DC2626';
+    else if (totalPaceRatio < 0.85) totalPaceColor = '#059669';
+
+    rows += `
+      <tr style="background: #F9FAFB; font-weight: 600;">
+        <td style="padding: 14px; color: #374151;">TOTAL</td>
+        <td style="padding: 14px; text-align: right; color: #374151;">${formatCurrency(totalSpent)}</td>
+        <td style="padding: 14px; text-align: right; color: #374151;">${formatCurrency(totalBudget)}</td>
+        <td style="padding: 14px; text-align: right; color: ${totalRemaining >= 0 ? '#374151' : '#DC2626'};">${formatCurrency(totalRemaining)}</td>
+        <td style="padding: 14px; text-align: right; color: ${totalPaceColor};">${totalPacePercent.toFixed(0)}%</td>
+      </tr>
+    `;
+
+    return `
+      <div style="padding: 24px 16px; border-top: 1px solid #E5E7EB;">
+        <h2 style="font-size: 16px; font-weight: 600; color: #374151; margin: 0 0 16px 0;">📊 Category Budget Tracking (MTD)</h2>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border-radius: 8px; overflow: hidden;">
+            <thead>
+              <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
+                <th style="padding: 16px 12px; text-align: left; font-weight: 600; font-size: 13px; color: #6B7280; text-transform: uppercase;">Category</th>
+                <th style="padding: 16px 12px; text-align: right; font-weight: 600; font-size: 13px; color: #6B7280; text-transform: uppercase;">Spent</th>
+                <th style="padding: 16px 12px; text-align: right; font-weight: 600; font-size: 13px; color: #6B7280; text-transform: uppercase;">Budget</th>
+                <th style="padding: 16px 12px; text-align: right; font-weight: 600; font-size: 13px; color: #6B7280; text-transform: uppercase;">Remaining</th>
+                <th style="padding: 16px 12px; text-align: right; font-weight: 600; font-size: 13px; color: #6B7280; text-transform: uppercase;">% Used</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top: 12px; font-size: 11px; color: #9CA3AF;">
+          ${currentDay} of ${daysInMonth} days elapsed (${timeElapsed.toFixed(0)}% of month)
+        </div>
+      </div>
+    `;
   };
 
   const buildCashBalanceChart = (history) => {
@@ -1013,6 +1313,11 @@ function formatEmailBody(summary, cashHistory, investmentBalances) {
           <p>${dateStr}</p>
         </div>
 
+        <!-- Supportive Feedback -->
+        <div style="padding: 20px 16px 0 16px;">
+          ${generateSupportiveFeedback(categorySpending)}
+        </div>
+
         <div class="content">
           <table class="finance-table">
             <thead>
@@ -1090,6 +1395,9 @@ function formatEmailBody(summary, cashHistory, investmentBalances) {
             ${formatLargeExpensesList(summary.largeExpenses.thisMonth)}
           </div>
         </div>
+
+        <!-- Category Budget Tracking -->
+        ${buildCategoryTable(categorySpending)}
 
         <div class="footer">
           <p>Automated daily finance summary from your Google Sheets transaction data</p>
