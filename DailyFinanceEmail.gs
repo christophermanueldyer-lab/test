@@ -828,11 +828,11 @@ function formatEmailBody(summary, cashHistory, investmentBalances, categorySpend
 
     // Overall status
     if (projectedTotal <= totalBudget * 0.95) {
-      feedback += `<p style="margin: 8px 0; color: #059669; font-weight: 500;">Great work! You're tracking ${formatCurrency(totalSpent)} of your ${formatCurrency(totalBudget)} monthly budget (${(totalSpent/totalBudget*100).toFixed(0)}% consumed with ${timeElapsed.toFixed(0)}% of the month elapsed). At this pace, you'll finish around ${formatCurrency(projectedTotal)} — well under target!</p>`;
+      feedback += `<p style="margin: 8px 0; color: #059669; font-weight: 500;">Great work! You're tracking ${formatCurrency(totalSpent)} of your ${formatCurrency(totalBudget)} monthly budget (${(totalSpent/totalBudget*100).toFixed(0)}% consumed with ${timeElapsed.toFixed(0)}% of the month elapsed). At this pace, you'll finish around ${formatCurrency(projectedTotal)} - well under target!</p>`;
     } else if (projectedTotal <= totalBudget) {
       feedback += `<p style="margin: 8px 0; color: #374151; font-weight: 500;">You're ${currentDay} days into the month with ${formatCurrency(totalSpent)} spent of your ${formatCurrency(totalBudget)} target. Current pace projects to ${formatCurrency(projectedTotal)} for the month.</p>`;
     } else {
-      feedback += `<p style="margin: 8px 0; color: #DC2626; font-weight: 500;">Heads up — you're ${currentDay} days into the month with ${formatCurrency(totalSpent)} spent. At the current pace, you're projected to finish around ${formatCurrency(projectedTotal)}, which is ${formatCurrency(projectedTotal - totalBudget)} over your ${formatCurrency(totalBudget)} target.</p>`;
+      feedback += `<p style="margin: 8px 0; color: #DC2626; font-weight: 500;">Heads up - you're ${currentDay} days into the month with ${formatCurrency(totalSpent)} spent. At the current pace, you're projected to finish around ${formatCurrency(projectedTotal)}, which is ${formatCurrency(projectedTotal - totalBudget)} over your ${formatCurrency(totalBudget)} target.</p>`;
     }
 
     // Highlight top issue if any
@@ -855,11 +855,11 @@ function formatEmailBody(summary, cashHistory, investmentBalances, categorySpend
 
       // Specific suggestions based on category
       if (topIssue.category === 'DoorDash' && topIssue.spent > 0) {
-        feedback += '<p style="margin: 8px 0; color: #374151; font-style: italic;">💡 Skipping DoorDash saves ~$90 per order — that's a nice dinner out later this month.</p>';
+        feedback += '<p style="margin: 8px 0; color: #374151; font-style: italic;">💡 Skipping DoorDash saves ~$90 per order - that is a nice dinner out later this month.</p>';
       } else if (topIssue.category === 'Dining Out') {
         feedback += '<p style="margin: 8px 0; color: #374151; font-style: italic;">💡 Consider pickup instead of dining in, or cooking at home for the next few days to create some breathing room.</p>';
       } else if (topIssue.category === 'General Merchandise') {
-        feedback += '<p style="margin: 8px 0; color: #374151; font-style: italic;">💡 Try the "one-week delay rule" — wait 7 days before non-essential purchases to see if you still want them.</p>';
+        feedback += '<p style="margin: 8px 0; color: #374151; font-style: italic;">💡 Try the "one-week delay rule" - wait 7 days before non-essential purchases to see if you still want them.</p>';
       }
     }
 
@@ -883,7 +883,7 @@ function formatEmailBody(summary, cashHistory, investmentBalances, categorySpend
 
     // Check for DoorDash streak
     if (!categorySpending['DoorDash'] || categorySpending['DoorDash'] === 0) {
-      feedback += `<p style="margin: 8px 0 0 0; color: #059669; font-weight: 500;">🏆 Zero DoorDash orders so far this month — keep it going!</p>`;
+      feedback += `<p style="margin: 8px 0 0 0; color: #059669; font-weight: 500;">🏆 Zero DoorDash orders so far this month - keep it going!</p>`;
     }
 
     feedback += '</div>';
@@ -1064,7 +1064,7 @@ function formatEmailBody(summary, cashHistory, investmentBalances, categorySpend
     }
 
     const rows = investmentBalances.map(account => {
-      let changeDisplay = '—';
+      let changeDisplay = '-';
       let changeColor = '#9CA3AF';
 
       if (account.dayOverDayPct !== null) {
