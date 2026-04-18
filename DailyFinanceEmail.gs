@@ -24,7 +24,7 @@ const CONFIG = {
   sheetName: 'Filtered Transactions',
 
   // Your email address to receive the daily update
-  recipientEmail: 'christophermanueldyer@gmail.com',
+  recipientEmail: 'christophermanueldyer@gmail.com,amandastephaniedyer@gmail.com,finance.dyerclaw@gmail.com',
 
   // Budget configuration - cell reference for your monthly variable budget
   // Example: 'Budget!B5' means cell B5 in the 'Budget' sheet tab
