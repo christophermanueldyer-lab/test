@@ -41,7 +41,8 @@ const CONFIG = {
   balancesStartRow: 10,  // First row to start searching for accounts
   investmentAccounts: [
     { name: 'Stock Plan (ROKU)', accountNumber: '9940' },
-    { name: 'SoFi Robo', accountNumber: '5831' }
+    { name: 'SoFi Robo', accountNumber: '5831' },
+    { name: 'Vested Stock', nameSearch: 'Vested Stock' }
   ],
   investmentHistorySheet: 'Investment Balance Trend',  // Sheet to log daily investment balances
 
@@ -168,10 +169,12 @@ function testEmail() {
 // ============================================================================
 
 /**
- * Find account balance by account number in the Balances sheet
- * Searches for account number in parentheses, e.g., "(9940)" or "(5831)"
+ * Find account balance in the Balances sheet.
+ * Supports two lookup modes:
+ *   - accountNumber: searches for "(XXXX)" pattern in account name column
+ *   - nameSearch: searches for a substring in account name column
  */
-function getAccountBalanceByNumber(ss, accountNumber) {
+function getAccountBalance(ss, account) {
   const balancesSheet = ss.getSheetByName(CONFIG.balancesSheet);
   if (!balancesSheet) {
     throw new Error(`Balances sheet "${CONFIG.balancesSheet}" not found`);
@@ -180,23 +183,23 @@ function getAccountBalanceByNumber(ss, accountNumber) {
   const dataRange = balancesSheet.getDataRange();
   const values = dataRange.getValues();
 
-  // Search for the account number pattern (XXXX) in the account name column
-  const searchPattern = `(${accountNumber})`;
+  const searchPattern = account.accountNumber
+    ? `(${account.accountNumber})`
+    : account.nameSearch;
+
+  const accountNameCol = CONFIG.balancesAccountNameColumn.charCodeAt(0) - 65;
+  const balanceCol = CONFIG.balancesBalanceColumn.charCodeAt(0) - 65;
 
   for (let i = CONFIG.balancesStartRow - 1; i < values.length; i++) {
-    const accountNameCol = CONFIG.balancesAccountNameColumn.charCodeAt(0) - 65; // Convert 'B' to column index
-    const balanceCol = CONFIG.balancesBalanceColumn.charCodeAt(0) - 65; // Convert 'D' to column index
-
     const cellAccountName = String(values[i][accountNameCol]).trim();
 
-    // Check if the account name contains the pattern "(9940)" or "(5831)"
     if (cellAccountName.includes(searchPattern)) {
       const balance = parseFloat(values[i][balanceCol]);
       return isNaN(balance) ? 0 : balance;
     }
   }
 
-  Logger.log(`Warning: Account number ${accountNumber} not found in Balances sheet`);
+  Logger.log(`Warning: Account "${searchPattern}" not found in Balances sheet`);
   return 0;
 }
 
@@ -218,7 +221,7 @@ function logDailyCashBalance() {
     // Subtract investment account balances to get cash-only balance
     let cashBalance = totalBalance;
     CONFIG.investmentAccounts.forEach(account => {
-      const investmentValue = getAccountBalanceByNumber(ss, account.accountNumber);
+      const investmentValue = getAccountBalance(ss, account);
       cashBalance -= investmentValue;
     });
 
@@ -277,7 +280,7 @@ function logDailyInvestmentBalances() {
 
     // Read current balances for each account
     const balances = CONFIG.investmentAccounts.map(account => {
-      return getAccountBalanceByNumber(ss, account.accountNumber);
+      return getAccountBalance(ss, account);
     });
 
     // Get today's date
@@ -322,8 +325,8 @@ function getInvestmentBalances() {
   const accounts = CONFIG.investmentAccounts.map(account => {
     return {
       name: account.name,
-      accountNumber: account.accountNumber,
-      balance: getAccountBalanceByNumber(ss, account.accountNumber),
+      accountNumber: account.accountNumber || account.nameSearch,
+      balance: getAccountBalance(ss, account),
       dayOverDayPct: null
     };
   });
