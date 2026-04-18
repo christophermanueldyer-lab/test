@@ -42,7 +42,8 @@ const CONFIG = {
   investmentAccounts: [
     { name: 'Stock Plan (ROKU)', accountNumber: '9940' },
     { name: 'SoFi Robo', accountNumber: '5831' },
-    { name: 'Vested Stock', nameSearch: 'Vested Stock' }
+    { name: 'Vested Stock', nameSearch: 'Vested Stock' },
+    { name: 'Cash (4649)', accountNumber: '4649' }
   ],
   investmentHistorySheet: 'Investment Balance Trend',  // Sheet to log daily investment balances
 
