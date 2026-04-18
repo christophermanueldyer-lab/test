@@ -62,7 +62,25 @@ const CONFIG = {
   emailTime: {
     hour: 9,    // 9 AM
     minute: 0   // 0 minutes
-  }
+  },
+
+  // RSU vesting schedule - sheet name and upcoming distribution dates
+  vestingScheduleSheet: 'RSU Vesting Schedule',
+  vestingSchedule: [
+    { date: '2026-06-14', shares: 925 },
+    { date: '2026-07-14', shares: 2212 },
+    { date: '2026-09-14', shares: 926 },
+    { date: '2026-12-14', shares: 925 },
+    { date: '2027-03-14', shares: 927 },
+    { date: '2027-06-14', shares: 547 },
+    { date: '2027-09-14', shares: 547 },
+    { date: '2027-12-14', shares: 548 },
+    { date: '2028-03-14', shares: 548 },
+    { date: '2028-06-14', shares: 233 },
+    { date: '2028-09-14', shares: 234 },
+    { date: '2028-12-14', shares: 234 },
+    { date: '2029-03-14', shares: 234 }
+  ]
 };
 
 // ============================================================================
@@ -88,7 +106,8 @@ function sendDailyFinanceEmail() {
 
     const cashHistory = getCashBalanceHistory();
     const investmentBalances = getInvestmentBalances();
-    const emailBody = formatEmailBody(summary, cashHistory, investmentBalances);
+    const todayVesting = getTodayVesting();
+    const emailBody = formatEmailBody(summary, cashHistory, investmentBalances, todayVesting);
 
     MailApp.sendEmail({
       to: CONFIG.recipientEmail,
@@ -137,6 +156,41 @@ function setup() {
  */
 function testEmail() {
   sendDailyFinanceEmail();
+}
+
+/**
+ * One-time setup: creates the RSU Vesting Schedule sheet and populates it
+ * from the vestingSchedule config. Safe to re-run - clears and rewrites.
+ */
+function setupVestingSchedule() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(CONFIG.vestingScheduleSheet);
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG.vestingScheduleSheet);
+  } else {
+    sheet.clearContents();
+  }
+
+  sheet.appendRow(['Distribution Date', 'Shares']);
+  CONFIG.vestingSchedule.forEach(entry => {
+    sheet.appendRow([new Date(entry.date), entry.shares]);
+  });
+
+  // Format date column and number column
+  sheet.getRange(2, 1, CONFIG.vestingSchedule.length, 1).setNumberFormat('MMM-dd-yyyy');
+  sheet.getRange(2, 2, CONFIG.vestingSchedule.length, 1).setNumberFormat('#,##0');
+  sheet.setColumnWidth(1, 160);
+  sheet.setColumnWidth(2, 100);
+  Logger.log('RSU Vesting Schedule sheet created with ' + CONFIG.vestingSchedule.length + ' entries.');
+}
+
+/**
+ * Returns today's vesting entry if shares vest today, otherwise null
+ */
+function getTodayVesting() {
+  const today = new Date();
+  const todayStr = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  return CONFIG.vestingSchedule.find(entry => entry.date === todayStr) || null;
 }
 
 // ============================================================================
@@ -653,7 +707,7 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
 /**
  * Format the email body with financial summary as a mobile-friendly table
  */
-function formatEmailBody(summary, cashHistory, investmentBalances) {
+function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting) {
   const now = new Date();
   const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'EEEE, MMMM dd, yyyy');
 
@@ -1013,6 +1067,14 @@ function formatEmailBody(summary, cashHistory, investmentBalances) {
           <h1>💰 Daily Finance Update</h1>
           <p>${dateStr}</p>
         </div>
+
+        ${todayVesting ? `
+        <div style="background: #059669; color: #FFFFFF; padding: 20px 16px; text-align: center;">
+          <div style="font-size: 22px; font-weight: 700; letter-spacing: 0.5px;">🎉 RSU VESTING DAY</div>
+          <div style="font-size: 18px; font-weight: 600; margin-top: 6px;">${todayVesting.shares.toLocaleString()} shares vest today</div>
+          <div style="font-size: 13px; margin-top: 4px; opacity: 0.9;">Check your Vested Stock account for the updated balance</div>
+        </div>
+        ` : ''}
 
         <div class="content">
           <table class="finance-table">
