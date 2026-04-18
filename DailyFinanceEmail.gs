@@ -43,7 +43,7 @@ const CONFIG = {
     { name: 'Stock Plan (ROKU)', accountNumber: '9940' },
     { name: 'SoFi Robo', accountNumber: '5831' },
     { name: 'Vested Stock', nameSearch: 'Vested Stock' },
-    { name: 'Cash (4649)', accountNumber: '4649' }
+    { name: 'Cash (4649)', accountNumber: '4649', display: false }
   ],
   investmentHistorySheet: 'Investment Balance Trend',  // Sheet to log daily investment balances
 
@@ -249,12 +249,12 @@ function logDailyInvestmentBalances() {
     if (!historySheet) {
       historySheet = ss.insertSheet(CONFIG.investmentHistorySheet);
       // Add headers: Date, then one column per account
-      const headers = ['Date'].concat(CONFIG.investmentAccounts.map(a => a.name));
+      const headers = ['Date'].concat(CONFIG.investmentAccounts.filter(a => a.display !== false).map(a => a.name));
       historySheet.appendRow(headers);
     }
 
-    // Read current balances for each account
-    const balances = CONFIG.investmentAccounts.map(account => {
+    // Read current balances for each displayed account
+    const balances = CONFIG.investmentAccounts.filter(a => a.display !== false).map(account => {
       return getAccountBalance(ss, account);
     });
 
@@ -296,8 +296,8 @@ function getInvestmentBalances() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const historySheet = ss.getSheetByName(CONFIG.investmentHistorySheet);
 
-  // Read current balances
-  const accounts = CONFIG.investmentAccounts.map(account => {
+  // Read current balances (only display accounts)
+  const accounts = CONFIG.investmentAccounts.filter(a => a.display !== false).map(account => {
     return {
       name: account.name,
       accountNumber: account.accountNumber || account.nameSearch,
