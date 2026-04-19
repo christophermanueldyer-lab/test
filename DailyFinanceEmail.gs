@@ -124,7 +124,8 @@ function sendDailyFinanceEmail() {
     const cashHistory = getCashBalanceHistory();
     const investmentBalances = getInvestmentBalances();
     const todayVesting = getTodayVesting();
-    const emailBody = formatEmailBody(summary, cashHistory, investmentBalances, todayVesting);
+    const rsuCompensation = getRsuCompensation();
+    const emailBody = formatEmailBody(summary, cashHistory, investmentBalances, todayVesting, rsuCompensation);
 
     MailApp.sendEmail({
       to: CONFIG.recipientEmail,
@@ -209,6 +210,57 @@ function getTodayVesting() {
   const today = new Date();
   const todayStr = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
   return CONFIG.vestingSchedule.find(entry => entry.date === todayStr) || null;
+}
+
+/**
+ * Calculate RSU compensation from the past 3 months by company
+ * Returns object with total compensation and monthly average per symbol
+ */
+function getRsuCompensation() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName(CONFIG.vestingScheduleSheet);
+
+  if (!sheet) {
+    Logger.log('RSU Vesting Schedule sheet not found - run setupVestingSchedule() first');
+    return null;
+  }
+
+  const dataRange = sheet.getDataRange();
+  const values = dataRange.getValues();
+
+  // Calculate 3 months ago
+  const now = new Date();
+  const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+
+  const compensation = {};
+
+  // Skip header row
+  for (let i = 1; i < values.length; i++) {
+    const vestDate = new Date(values[i][0]);
+    const shares = parseFloat(values[i][1]);
+    const symbol = String(values[i][2]).trim();
+    const price = parseFloat(values[i][3]);
+
+    // Only include vesting events in the past 3 months (and in the past, not future)
+    if (vestDate >= threeMonthsAgo && vestDate <= now && !isNaN(shares) && !isNaN(price)) {
+      if (!compensation[symbol]) {
+        compensation[symbol] = {
+          totalCompensation: 0,
+          sharesVested: 0
+        };
+      }
+
+      compensation[symbol].totalCompensation += shares * price;
+      compensation[symbol].sharesVested += shares;
+    }
+  }
+
+  // Calculate monthly averages
+  Object.keys(compensation).forEach(symbol => {
+    compensation[symbol].monthlyAverage = compensation[symbol].totalCompensation / 3;
+  });
+
+  return Object.keys(compensation).length > 0 ? compensation : null;
 }
 
 // ============================================================================
@@ -725,7 +777,7 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
 /**
  * Format the email body with financial summary as a mobile-friendly table
  */
-function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting) {
+function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting, rsuCompensation) {
   const now = new Date();
   const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'EEEE, MMMM dd, yyyy');
 
@@ -877,6 +929,61 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting)
             ${rows}
           </tbody>
         </table>
+      </div>
+    `;
+  };
+
+  const buildRsuCompensationTable = (rsuCompensation) => {
+    if (!rsuCompensation || Object.keys(rsuCompensation).length === 0) {
+      return '';
+    }
+
+    const rows = Object.keys(rsuCompensation).sort().map(symbol => {
+      const data = rsuCompensation[symbol];
+      return `
+        <tr>
+          <td class="row-label">${symbol}</td>
+          <td class="amount" style="color: #374151;">
+            ${data.sharesVested.toLocaleString()}
+          </td>
+          <td class="amount" style="color: #374151;">
+            ${formatCurrency(data.totalCompensation)}
+          </td>
+          <td class="amount" style="color: #059669; font-weight: 700;">
+            ${formatCurrency(data.monthlyAverage)}
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const totalCompensation = Object.values(rsuCompensation).reduce((sum, data) => sum + data.totalCompensation, 0);
+    const totalMonthly = totalCompensation / 3;
+
+    return `
+      <div class="chart-section">
+        <h2 class="section-title">💰 RSU Compensation (Past 3 Months)</h2>
+        <table class="finance-table">
+          <thead>
+            <tr>
+              <th style="width: 25%;">Company</th>
+              <th style="width: 25%; text-align: right;">Shares Vested</th>
+              <th style="width: 25%; text-align: right;">Total Value</th>
+              <th style="width: 25%; text-align: right;">Monthly Avg</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+            <tr style="background: #F9FAFB; font-weight: 600; border-top: 2px solid #E5E7EB;">
+              <td class="row-label">TOTAL</td>
+              <td class="amount" style="color: #374151;">--</td>
+              <td class="amount" style="color: #374151;">${formatCurrency(totalCompensation)}</td>
+              <td class="amount" style="color: #059669; font-weight: 700;">${formatCurrency(totalMonthly)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top: 12px; font-size: 11px; color: #9CA3AF;">
+          Based on vesting events in the past 3 months at current share prices
+        </div>
       </div>
     `;
   };
@@ -1155,6 +1262,9 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting)
 
         <!-- Investment Balances -->
         ${buildInvestmentBalancesTable(investmentBalances)}
+
+        <!-- RSU Compensation -->
+        ${buildRsuCompensationTable(rsuCompensation)}
 
         <!-- Large Expenses from Last 3 Days -->
         <div class="large-expenses-section">
