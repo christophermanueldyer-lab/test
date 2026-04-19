@@ -64,26 +64,39 @@ const CONFIG = {
     minute: 0   // 0 minutes
   },
 
-  // RSU vesting schedule - sheet name and upcoming distribution dates
+  // RSU vesting schedule - sheet name and all vesting events (past and future)
   vestingScheduleSheet: 'RSU Vesting Schedule',
   vestingSchedule: [
-    { date: '2026-06-01', shares: 213 },
-    { date: '2026-06-14', shares: 925 },
-    { date: '2026-07-14', shares: 2212 },
-    { date: '2026-09-01', shares: 213 },
-    { date: '2026-09-14', shares: 926 },
-    { date: '2026-11-15', shares: 213 },
-    { date: '2026-12-14', shares: 925 },
-    { date: '2027-03-01', shares: 214 },
-    { date: '2027-03-14', shares: 927 },
-    { date: '2027-06-14', shares: 547 },
-    { date: '2027-09-14', shares: 547 },
-    { date: '2027-12-14', shares: 548 },
-    { date: '2028-03-14', shares: 548 },
-    { date: '2028-06-14', shares: 233 },
-    { date: '2028-09-14', shares: 234 },
-    { date: '2028-12-14', shares: 234 },
-    { date: '2029-03-14', shares: 234 }
+    // Past events
+    { date: '2025-04-14', shares: 1322, symbol: 'SOFI' },
+    { date: '2025-06-03', shares: 94000, symbol: 'ROKU' },
+    { date: '2025-06-14', shares: 416, symbol: 'SOFI' },
+    { date: '2025-07-14', shares: 1309, symbol: 'SOFI' },
+    { date: '2025-09-03', shares: 94000, symbol: 'ROKU' },
+    { date: '2025-09-14', shares: 446, symbol: 'SOFI' },
+    { date: '2025-11-18', shares: 96000, symbol: 'ROKU' },
+    { date: '2026-01-14', shares: 1292, symbol: 'SOFI' },
+    { date: '2026-03-03', shares: 94000, symbol: 'ROKU' },
+    { date: '2026-03-14', shares: 403, symbol: 'SOFI' },
+    { date: '2026-04-14', shares: 1415, symbol: 'SOFI' },
+    // Future events
+    { date: '2026-06-01', shares: 213, symbol: 'ROKU' },
+    { date: '2026-06-14', shares: 925, symbol: 'SOFI' },
+    { date: '2026-07-14', shares: 2212, symbol: 'SOFI' },
+    { date: '2026-09-01', shares: 213, symbol: 'ROKU' },
+    { date: '2026-09-14', shares: 926, symbol: 'SOFI' },
+    { date: '2026-11-15', shares: 213, symbol: 'ROKU' },
+    { date: '2026-12-14', shares: 925, symbol: 'SOFI' },
+    { date: '2027-03-01', shares: 214, symbol: 'ROKU' },
+    { date: '2027-03-14', shares: 927, symbol: 'SOFI' },
+    { date: '2027-06-14', shares: 547, symbol: 'SOFI' },
+    { date: '2027-09-14', shares: 547, symbol: 'SOFI' },
+    { date: '2027-12-14', shares: 548, symbol: 'SOFI' },
+    { date: '2028-03-14', shares: 548, symbol: 'SOFI' },
+    { date: '2028-06-14', shares: 233, symbol: 'SOFI' },
+    { date: '2028-09-14', shares: 234, symbol: 'SOFI' },
+    { date: '2028-12-14', shares: 234, symbol: 'SOFI' },
+    { date: '2029-03-14', shares: 234, symbol: 'SOFI' }
   ]
 };
 
@@ -175,16 +188,17 @@ function setupVestingSchedule() {
     sheet.clearContents();
   }
 
-  sheet.appendRow(['Distribution Date', 'Shares']);
+  sheet.appendRow(['Distribution Date', 'Shares', 'Symbol']);
   CONFIG.vestingSchedule.forEach(entry => {
-    sheet.appendRow([new Date(entry.date), entry.shares]);
+    sheet.appendRow([new Date(entry.date), entry.shares, entry.symbol]);
   });
 
-  // Format date column and number column
+  // Format columns
   sheet.getRange(2, 1, CONFIG.vestingSchedule.length, 1).setNumberFormat('MMM-dd-yyyy');
   sheet.getRange(2, 2, CONFIG.vestingSchedule.length, 1).setNumberFormat('#,##0');
   sheet.setColumnWidth(1, 160);
   sheet.setColumnWidth(2, 100);
+  sheet.setColumnWidth(3, 80);
   Logger.log('RSU Vesting Schedule sheet created with ' + CONFIG.vestingSchedule.length + ' entries.');
 }
 
@@ -1075,7 +1089,7 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting)
         ${todayVesting ? `
         <div style="background: #059669; color: #FFFFFF; padding: 20px 16px; text-align: center;">
           <div style="font-size: 22px; font-weight: 700; letter-spacing: 0.5px;">🎉 RSU VESTING DAY</div>
-          <div style="font-size: 18px; font-weight: 600; margin-top: 6px;">${todayVesting.shares.toLocaleString()} shares vest today</div>
+          <div style="font-size: 18px; font-weight: 600; margin-top: 6px;">${todayVesting.shares.toLocaleString()} ${todayVesting.symbol} shares vest today</div>
           <div style="font-size: 13px; margin-top: 4px; opacity: 0.9;">Check your Vested Stock account for the updated balance</div>
         </div>
         ` : ''}
