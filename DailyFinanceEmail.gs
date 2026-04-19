@@ -67,10 +67,14 @@ const CONFIG = {
   // RSU vesting schedule - sheet name and upcoming distribution dates
   vestingScheduleSheet: 'RSU Vesting Schedule',
   vestingSchedule: [
+    { date: '2026-06-01', shares: 213 },
     { date: '2026-06-14', shares: 925 },
     { date: '2026-07-14', shares: 2212 },
+    { date: '2026-09-01', shares: 213 },
     { date: '2026-09-14', shares: 926 },
+    { date: '2026-11-15', shares: 213 },
     { date: '2026-12-14', shares: 925 },
+    { date: '2027-03-01', shares: 214 },
     { date: '2027-03-14', shares: 927 },
     { date: '2027-06-14', shares: 547 },
     { date: '2027-09-14', shares: 547 },
