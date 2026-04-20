@@ -55,13 +55,41 @@ const CONFIG = {
     amount: 'Amount',
     account: 'Account',
     accountNumber: 'Account #',
-    incomeOrExpense: 'Income Or Expense'  // Column K in your sheet
+    incomeOrExpense: 'Income Or Expense',  // Column K in your sheet
+    categoryHint: 'Category Hint'  // Column P - Plaid category in format "TOP_LEVEL:SUBCATEGORY"
   },
 
   // Time to send daily email (24-hour format)
   emailTime: {
     hour: 9,    // 9 AM
     minute: 0   // 0 minutes
+  },
+
+  // Monthly total budget target
+  monthlyTotalBudget: 6893.75,
+
+  // Category budgets
+  categoryBudgets: {
+    // Featured categories (shown individually in email)
+    'Groceries': { budget: 1200, plaidPrefix: 'FOOD_AND_DRINK', subcategory: 'groceries', topCategory: true },
+    'Dining Out': { budget: 600, plaidPrefix: 'FOOD_AND_DRINK', subcategory: 'dining', topCategory: true },
+    'DoorDash': { budget: 0, plaidPrefix: 'FOOD_AND_DRINK', subcategory: 'doordash', topCategory: true },
+    'General Merchandise': { budget: 1800, plaidPrefix: 'GENERAL_MERCHANDISE', topCategory: true },
+
+    // Other categories (rolled up into "Other" row)
+    'Transfer Out': { budget: 1067, plaidPrefix: 'TRANSFER_OUT' },
+    'Rent & Utilities': { budget: 1006, plaidPrefix: 'RENT_AND_UTILITIES' },
+    'General Services': { budget: 400, plaidPrefix: 'GENERAL_SERVICES' },
+    'Transportation': { budget: 363, plaidPrefix: 'TRANSPORTATION' },
+    'Personal Care': { budget: 300, plaidPrefix: 'PERSONAL_CARE' },
+    'Loan Payments': { budget: 221, plaidPrefix: 'LOAN_PAYMENTS' },
+    'Entertainment': { budget: 150, plaidPrefix: 'ENTERTAINMENT' },
+    'Food Other': { budget: 100, plaidPrefix: 'FOOD_AND_DRINK', subcategory: 'other' },
+    'Home Improvement': { budget: 75, plaidPrefix: 'HOME_IMPROVEMENT' },
+    'Medical': { budget: 58, plaidPrefix: 'MEDICAL' },
+    'Government & Non-Profit': { budget: 53, plaidPrefix: 'GOVERNMENT_AND_NON_PROFIT' },
+    'Bank Fees': { budget: 20, plaidPrefix: 'BANK_FEES' },
+    'Travel': { budget: 10.75, plaidPrefix: 'TRAVEL' }
   },
 
   // RSU vesting schedule - sheet name and all vesting events (past and future)
@@ -117,6 +145,7 @@ function sendDailyFinanceEmail() {
     const variableBudget = getVariableBudget();
     const data = getTransactionData();
     const summary = calculateFinancialSummary(data, variableBudget);
+    const categorySpending = calculateCategorySpending(data);
 
     // Log today's MTD spending for tomorrow's comparison
     logDailySpending(summary.mtd.actualSpending);
@@ -125,7 +154,7 @@ function sendDailyFinanceEmail() {
     const investmentBalances = getInvestmentBalances();
     const todayVesting = getTodayVesting();
     const rsuCompensation = getRsuCompensation();
-    const emailBody = formatEmailBody(summary, cashHistory, investmentBalances, todayVesting, rsuCompensation);
+    const emailBody = formatEmailBody(summary, cashHistory, investmentBalances, todayVesting, rsuCompensation, categorySpending);
 
     MailApp.sendEmail({
       to: CONFIG.recipientEmail,
@@ -626,6 +655,7 @@ function getTransactionData() {
   const accountCol = headers.indexOf(CONFIG.columns.account);
   const accountNumCol = headers.indexOf(CONFIG.columns.accountNumber);
   const typeCol = headers.indexOf(CONFIG.columns.incomeOrExpense);
+  const categoryCol = headers.indexOf(CONFIG.columns.categoryHint);
 
   if (dateCol === -1 || amountCol === -1 || typeCol === -1) {
     throw new Error('Required columns (Date, Amount, Income Or Expense) not found. Please check CONFIG.columns settings');
@@ -641,6 +671,7 @@ function getTransactionData() {
     const account = accountCol !== -1 ? String(row[accountCol]).trim() : '';
     const accountNumber = accountNumCol !== -1 ? String(row[accountNumCol]).trim() : '';
     const type = String(row[typeCol]).trim().toLowerCase();
+    const categoryHint = categoryCol !== -1 ? String(row[categoryCol]).trim() : '';
 
     // Skip invalid rows
     if (isNaN(date.getTime()) || isNaN(amount)) {
@@ -658,11 +689,97 @@ function getTransactionData() {
       amount: amount,
       account: account,
       accountNumber: accountNumber,
-      type: type
+      type: type,
+      categoryHint: categoryHint
     });
   }
 
   return transactions;
+}
+
+/**
+ * Categorize a transaction based on Plaid category hint and description
+ * Returns the budget category name or 'Other' if no match
+ */
+function categorizeTransaction(transaction) {
+  const categoryHint = transaction.categoryHint.toUpperCase();
+  const description = transaction.description.toLowerCase();
+
+  // Extract top-level Plaid category (before the colon)
+  const topLevel = categoryHint.split(':')[0];
+
+  // Special handling for FOOD_AND_DRINK subcategories
+  if (topLevel === 'FOOD_AND_DRINK') {
+    // DoorDash takes priority
+    if (description.includes('doordash') || description.includes('door dash')) {
+      return 'DoorDash';
+    }
+
+    // Get Plaid subcategory (after the colon)
+    const subCategory = categoryHint.split(':')[1] || '';
+
+    // Groceries
+    if (subCategory === 'FOOD_AND_DRINK_GROCERIES') {
+      return 'Groceries';
+    }
+
+    // Dining Out
+    if (subCategory === 'FOOD_AND_DRINK_RESTAURANT' ||
+        subCategory === 'FOOD_AND_DRINK_FAST_FOOD' ||
+        subCategory === 'FOOD_AND_DRINK_COFFEE') {
+      return 'Dining Out';
+    }
+
+    return 'Food Other';
+  }
+
+  // Map top-level Plaid categories to budget categories
+  const categoryMap = {
+    'GENERAL_MERCHANDISE': 'General Merchandise',
+    'TRANSFER_OUT': 'Transfer Out',
+    'RENT_AND_UTILITIES': 'Rent & Utilities',
+    'GENERAL_SERVICES': 'General Services',
+    'PERSONAL_CARE': 'Personal Care',
+    'TRANSPORTATION': 'Transportation',
+    'ENTERTAINMENT': 'Entertainment',
+    'LOAN_PAYMENTS': 'Loan Payments',
+    'HOME_IMPROVEMENT': 'Home Improvement',
+    'MEDICAL': 'Medical',
+    'GOVERNMENT_AND_NON_PROFIT': 'Government & Non-Profit',
+    'BANK_FEES': 'Bank Fees',
+    'TRAVEL': 'Travel'
+  };
+
+  return categoryMap[topLevel] || 'Other';
+}
+
+/**
+ * Calculate category-level spending for the current month
+ * Returns spending by category
+ */
+function calculateCategorySpending(transactions) {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const monthStart = new Date(currentYear, currentMonth, 1);
+
+  // Initialize spending for each category
+  const categorySpending = {};
+  Object.keys(CONFIG.categoryBudgets).forEach(category => {
+    categorySpending[category] = 0;
+  });
+  categorySpending['Other'] = 0;
+
+  // Sum up expenses by category for current month
+  transactions.forEach(t => {
+    if (t.type === 'expense' && t.date >= monthStart) {
+      const category = categorizeTransaction(t);
+      const absAmount = Math.abs(t.amount);
+      categorySpending[category] = (categorySpending[category] || 0) + absAmount;
+    }
+  });
+
+  return categorySpending;
 }
 
 /**
@@ -777,7 +894,7 @@ function calculateFinancialSummary(transactions, monthlyVariableBudget) {
 /**
  * Format the email body with financial summary as a mobile-friendly table
  */
-function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting, rsuCompensation) {
+function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting, rsuCompensation, categorySpending) {
   const now = new Date();
   const dateStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'EEEE, MMMM dd, yyyy');
 
@@ -878,6 +995,147 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting,
           <div class="chart-caption">
             Current: ${formatCurrency(data[data.length - 1])} - Low: ${formatCurrency(minBalance)} - High: ${formatCurrency(maxBalance)}
           </div>
+        </div>
+      </div>
+    `;
+  };
+
+  const buildTopCategoriesTable = (categorySpending) => {
+    const currentDay = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const timeElapsed = (currentDay / daysInMonth) * 100;
+
+    // Get featured categories (marked with topCategory: true)
+    const topCategories = Object.keys(CONFIG.categoryBudgets)
+      .filter(cat => CONFIG.categoryBudgets[cat].topCategory);
+
+    // Calculate "Other" budget and spending
+    let otherBudget = 0;
+    let otherSpending = 0;
+    const otherBreakdown = [];
+
+    Object.keys(CONFIG.categoryBudgets).forEach(category => {
+      if (!topCategories.includes(category)) {
+        const budget = CONFIG.categoryBudgets[category].budget;
+        const spent = categorySpending[category] || 0;
+        otherBudget += budget;
+        otherSpending += spent;
+        if (spent > 0) {
+          otherBreakdown.push({ category, spent });
+        }
+      }
+    });
+
+    // Sort other breakdown by spending (highest first)
+    otherBreakdown.sort((a, b) => b.spent - a.spent);
+
+    // Build rows for featured categories
+    let rows = '';
+    let totalSpent = 0;
+    let totalBudget = 0;
+
+    topCategories.forEach(category => {
+      const config = CONFIG.categoryBudgets[category];
+      const spent = categorySpending[category] || 0;
+      const budget = config.budget;
+      const remaining = budget - spent;
+      const budgetConsumed = budget > 0 ? (spent / budget) * 100 : 0;
+      const paceRatio = timeElapsed > 0 ? budgetConsumed / timeElapsed : 0;
+
+      totalSpent += spent;
+      totalBudget += budget;
+
+      // Color coding based on pace ratio
+      let paceColor = '#374151';  // Black (on pace)
+      if (paceRatio < 0.85) paceColor = '#059669';  // Green (under pace)
+      else if (paceRatio >= 1.0 && paceRatio < 1.15) paceColor = '#F59E0B';  // Yellow (slightly over)
+      else if (paceRatio >= 1.15) paceColor = '#DC2626';  // Red (over pace)
+
+      rows += `
+        <tr style="border-bottom: 1px solid #F3F4F6;">
+          <td style="padding: 12px; color: #374151;">${category}</td>
+          <td style="padding: 12px; text-align: right; color: #374151;">${formatCurrency(spent)}</td>
+          <td style="padding: 12px; text-align: right; color: #374151;">${formatCurrency(budget)}</td>
+          <td style="padding: 12px; text-align: right; color: ${remaining >= 0 ? '#374151' : '#DC2626'};">${formatCurrency(remaining)}</td>
+          <td style="padding: 12px; text-align: right; color: ${paceColor}; font-weight: 600;">${budgetConsumed.toFixed(0)}%</td>
+        </tr>
+      `;
+    });
+
+    // Add "Other" row with breakdown
+    const otherRemaining = otherBudget - otherSpending;
+    const otherBudgetConsumed = otherBudget > 0 ? (otherSpending / otherBudget) * 100 : 0;
+    const otherPaceRatio = timeElapsed > 0 ? otherBudgetConsumed / timeElapsed : 0;
+
+    let otherPaceColor = '#374151';
+    if (otherPaceRatio < 0.85) otherPaceColor = '#059669';
+    else if (otherPaceRatio >= 1.0 && otherPaceRatio < 1.15) otherPaceColor = '#F59E0B';
+    else if (otherPaceRatio >= 1.15) otherPaceColor = '#DC2626';
+
+    totalSpent += otherSpending;
+    totalBudget += otherBudget;
+
+    // Build "Other" explanation text
+    const otherExplanation = otherBreakdown.length > 0
+      ? 'Top drivers: ' + otherBreakdown.slice(0, 3).map(item =>
+          `${item.category} (${formatCurrency(item.spent)})`
+        ).join(', ')
+      : 'No spending in other categories';
+
+    rows += `
+      <tr style="border-bottom: 1px solid #F3F4F6;">
+        <td style="padding: 12px; color: #374151;">
+          Other
+          <div style="font-size: 11px; color: #9CA3AF; margin-top: 2px;">${otherExplanation}</div>
+        </td>
+        <td style="padding: 12px; text-align: right; color: #374151;">${formatCurrency(otherSpending)}</td>
+        <td style="padding: 12px; text-align: right; color: #374151;">${formatCurrency(otherBudget)}</td>
+        <td style="padding: 12px; text-align: right; color: ${otherRemaining >= 0 ? '#374151' : '#DC2626'};">${formatCurrency(otherRemaining)}</td>
+        <td style="padding: 12px; text-align: right; color: ${otherPaceColor}; font-weight: 600;">${otherBudgetConsumed.toFixed(0)}%</td>
+      </tr>
+    `;
+
+    // Add total row
+    const totalRemaining = totalBudget - totalSpent;
+    const totalBudgetConsumed = (totalSpent / totalBudget) * 100;
+    const totalPaceRatio = timeElapsed > 0 ? totalBudgetConsumed / timeElapsed : 0;
+
+    let totalPaceColor = '#374151';
+    if (totalPaceRatio < 0.85) totalPaceColor = '#059669';
+    else if (totalPaceRatio >= 1.0 && totalPaceRatio < 1.15) totalPaceColor = '#F59E0B';
+    else if (totalPaceRatio >= 1.15) totalPaceColor = '#DC2626';
+
+    rows += `
+      <tr style="background: #F9FAFB; font-weight: 600;">
+        <td style="padding: 14px; color: #374151;">TOTAL</td>
+        <td style="padding: 14px; text-align: right; color: #374151;">${formatCurrency(totalSpent)}</td>
+        <td style="padding: 14px; text-align: right; color: #374151;">${formatCurrency(totalBudget)}</td>
+        <td style="padding: 14px; text-align: right; color: ${totalRemaining >= 0 ? '#374151' : '#DC2626'};">${formatCurrency(totalRemaining)}</td>
+        <td style="padding: 14px; text-align: right; color: ${totalPaceColor};">${totalBudgetConsumed.toFixed(0)}%</td>
+      </tr>
+    `;
+
+    return `
+      <div style="padding: 24px 16px; border-top: 1px solid #E5E7EB;">
+        <h2 style="font-size: 16px; font-weight: 600; color: #374151; margin: 0 0 16px 0;">📊 Top Category Budget Tracking (MTD)</h2>
+        <div style="overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); border-radius: 8px; overflow: hidden;">
+            <thead>
+              <tr style="background-color: #F9FAFB; border-bottom: 2px solid #E5E7EB;">
+                <th style="padding: 16px 12px; text-align: left; font-weight: 600; font-size: 13px; color: #6B7280; text-transform: uppercase;">Category</th>
+                <th style="padding: 16px 12px; text-align: right; font-weight: 600; font-size: 13px; color: #6B7280; text-transform: uppercase;">Spent</th>
+                <th style="padding: 16px 12px; text-align: right; font-weight: 600; font-size: 13px; color: #6B7280; text-transform: uppercase;">Budget</th>
+                <th style="padding: 16px 12px; text-align: right; font-weight: 600; font-size: 13px; color: #6B7280; text-transform: uppercase;">Remaining</th>
+                <th style="padding: 16px 12px; text-align: right; font-weight: 600; font-size: 13px; color: #6B7280; text-transform: uppercase;">% Used</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        </div>
+        <div style="margin-top: 12px; font-size: 11px; color: #9CA3AF;">
+          ${currentDay} of ${daysInMonth} days elapsed (${timeElapsed.toFixed(0)}% of month)
         </div>
       </div>
     `;
@@ -1262,6 +1520,9 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting,
 
         <!-- Investment Balances -->
         ${buildInvestmentBalancesTable(investmentBalances)}
+
+        <!-- Top Category Budget Tracking -->
+        ${buildTopCategoriesTable(categorySpending)}
 
         <!-- RSU Compensation -->
         ${buildRsuCompensationTable(rsuCompensation)}
