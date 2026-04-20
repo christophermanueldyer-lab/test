@@ -771,11 +771,11 @@ function calculateCategorySpending(transactions) {
   categorySpending['Other'] = 0;
 
   // Sum up expenses by category for current month
+  // Use raw amounts (negative for expenses, positive for refunds) to match main summary logic
   transactions.forEach(t => {
     if (t.type === 'expense' && t.date >= monthStart) {
       const category = categorizeTransaction(t);
-      const absAmount = Math.abs(t.amount);
-      categorySpending[category] = (categorySpending[category] || 0) + absAmount;
+      categorySpending[category] = (categorySpending[category] || 0) + t.amount;
     }
   });
 
@@ -1017,7 +1017,7 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting,
     Object.keys(CONFIG.categoryBudgets).forEach(category => {
       if (!topCategories.includes(category)) {
         const budget = CONFIG.categoryBudgets[category].budget;
-        const spent = categorySpending[category] || 0;
+        const spent = Math.abs(categorySpending[category] || 0);  // Take absolute value
         otherBudget += budget;
         otherSpending += spent;
         if (spent > 0) {
@@ -1036,7 +1036,7 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting,
 
     topCategories.forEach(category => {
       const config = CONFIG.categoryBudgets[category];
-      const spent = categorySpending[category] || 0;
+      const spent = Math.abs(categorySpending[category] || 0);  // Take absolute value for display
       const budget = config.budget;
       const remaining = budget - spent;
       const budgetConsumed = budget > 0 ? (spent / budget) * 100 : 0;
