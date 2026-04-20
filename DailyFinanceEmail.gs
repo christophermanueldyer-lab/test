@@ -1027,6 +1027,14 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting,
       }
     });
 
+    // Also include the "Other" bucket (transactions that didn't match any CONFIG category)
+    // This catches uncommon Plaid categories and refunds, ensuring total matches main summary
+    const uncategorizedRaw = categorySpending['Other'] || 0;
+    otherSpendingRaw += uncategorizedRaw;
+    if (Math.abs(uncategorizedRaw) > 0) {
+      otherBreakdown.push({ category: 'Uncategorized', spent: Math.abs(uncategorizedRaw) });
+    }
+
     // Sort other breakdown by spending (highest first)
     otherBreakdown.sort((a, b) => b.spent - a.spent);
 
