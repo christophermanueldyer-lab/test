@@ -1011,15 +1011,16 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting,
 
     // Calculate "Other" budget and spending
     let otherBudget = 0;
-    let otherSpending = 0;
+    let otherSpendingRaw = 0;  // Track raw (negative) total
     const otherBreakdown = [];
 
     Object.keys(CONFIG.categoryBudgets).forEach(category => {
       if (!topCategories.includes(category)) {
         const budget = CONFIG.categoryBudgets[category].budget;
-        const spent = Math.abs(categorySpending[category] || 0);  // Take absolute value
+        const rawSpent = categorySpending[category] || 0;
+        const spent = Math.abs(rawSpent);  // Absolute value for breakdown display
         otherBudget += budget;
-        otherSpending += spent;
+        otherSpendingRaw += rawSpent;  // Sum raw values
         if (spent > 0) {
           otherBreakdown.push({ category, spent });
         }
@@ -1031,18 +1032,19 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting,
 
     // Build rows for featured categories
     let rows = '';
-    let totalSpent = 0;
+    let totalSpentRaw = 0;  // Track raw (negative) total
     let totalBudget = 0;
 
     topCategories.forEach(category => {
       const config = CONFIG.categoryBudgets[category];
-      const spent = Math.abs(categorySpending[category] || 0);  // Take absolute value for display
+      const rawSpent = categorySpending[category] || 0;  // Keep raw value
+      const spent = Math.abs(rawSpent);  // Absolute value for display only
       const budget = config.budget;
       const remaining = budget - spent;
       const budgetConsumed = budget > 0 ? (spent / budget) * 100 : 0;
       const paceRatio = timeElapsed > 0 ? budgetConsumed / timeElapsed : 0;
 
-      totalSpent += spent;
+      totalSpentRaw += rawSpent;  // Sum raw values
       totalBudget += budget;
 
       // Color coding based on pace ratio
@@ -1063,6 +1065,7 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting,
     });
 
     // Add "Other" row with breakdown
+    const otherSpending = Math.abs(otherSpendingRaw);  // Display as positive
     const otherRemaining = otherBudget - otherSpending;
     const otherBudgetConsumed = otherBudget > 0 ? (otherSpending / otherBudget) * 100 : 0;
     const otherPaceRatio = timeElapsed > 0 ? otherBudgetConsumed / timeElapsed : 0;
@@ -1072,7 +1075,7 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting,
     else if (otherPaceRatio >= 1.0 && otherPaceRatio < 1.15) otherPaceColor = '#F59E0B';
     else if (otherPaceRatio >= 1.15) otherPaceColor = '#DC2626';
 
-    totalSpent += otherSpending;
+    totalSpentRaw += otherSpendingRaw;  // Add raw value to total
     totalBudget += otherBudget;
 
     // Build "Other" explanation text
@@ -1096,6 +1099,7 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting,
     `;
 
     // Add total row
+    const totalSpent = Math.abs(totalSpentRaw);  // Take absolute value of sum for display
     const totalRemaining = totalBudget - totalSpent;
     const totalBudgetConsumed = (totalSpent / totalBudget) * 100;
     const totalPaceRatio = timeElapsed > 0 ? totalBudgetConsumed / timeElapsed : 0;
