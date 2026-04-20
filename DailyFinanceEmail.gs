@@ -715,8 +715,8 @@ function categorizeTransaction(transaction) {
       return 'DoorDash';
     }
 
-    // Get Plaid subcategory (after the colon)
-    const subCategory = categoryHint.split(':')[1] || '';
+    // Get Plaid subcategory (after the colon) and trim whitespace
+    const subCategory = (categoryHint.split(':')[1] || '').trim();
 
     // Groceries
     if (subCategory === 'FOOD_AND_DRINK_GROCERIES') {
