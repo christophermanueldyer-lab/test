@@ -1527,18 +1527,6 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting,
           </table>
         </div>
 
-        <!-- Cash Balance Chart -->
-        ${buildCashBalanceChart(cashHistory)}
-
-        <!-- Investment Balances -->
-        ${buildInvestmentBalancesTable(investmentBalances)}
-
-        <!-- Top Category Budget Tracking -->
-        ${buildTopCategoriesTable(categorySpending)}
-
-        <!-- RSU Compensation -->
-        ${buildRsuCompensationTable(rsuCompensation)}
-
         <!-- Large Expenses from Last 3 Days -->
         <div class="large-expenses-section">
           <h2 class="section-title">💸 Large Expenses from Last 3 Days (&gt; $100)</h2>
@@ -1554,6 +1542,18 @@ function formatEmailBody(summary, cashHistory, investmentBalances, todayVesting,
             ${formatLargeExpensesList(summary.largeExpenses.thisMonth)}
           </div>
         </div>
+
+        <!-- Top Category Budget Tracking -->
+        ${buildTopCategoriesTable(categorySpending)}
+
+        <!-- Cash Balance Chart -->
+        ${buildCashBalanceChart(cashHistory)}
+
+        <!-- Investment Balances -->
+        ${buildInvestmentBalancesTable(investmentBalances)}
+
+        <!-- RSU Compensation -->
+        ${buildRsuCompensationTable(rsuCompensation)}
 
         <div class="footer">
           <p>Automated daily finance summary from your Google Sheets transaction data</p>
