@@ -40,3 +40,6 @@ Thumbs.db
 
 # Generator intermediate output (MP3 is the artifact)
 golf_warmup/warmup.wav
+
+# Piper voice model (auto-downloaded by generate_warmup.py)
+golf_warmup/voices/

@@ -6,11 +6,13 @@ import math
 import struct
 import subprocess
 import sys
+import tarfile
 import tempfile
+import urllib.request
 import wave
 from pathlib import Path
 
-SAMPLE_RATE = 22050
+SAMPLE_RATE = 16000
 SAMPLE_WIDTH = 2
 CHANNELS = 1
 
@@ -18,15 +20,38 @@ HERE = Path(__file__).resolve().parent
 ROUTINE = HERE / "routine.json"
 OUT_WAV = HERE / "warmup.wav"
 OUT_MP3 = HERE / "warmup.mp3"
+VOICE_MODEL = HERE / "voices" / "en-us-lessac-medium.onnx"
+VOICE_URL = (
+    "https://github.com/rhasspy/piper/releases/download/v0.0.2/"
+    "voice-en-us-lessac-medium.tar.gz"
+)
+
+
+def ensure_voice() -> None:
+    """Download and extract the Piper voice model if it's not already present."""
+    if VOICE_MODEL.exists() and VOICE_MODEL.with_suffix(".onnx.json").exists():
+        return
+    VOICE_MODEL.parent.mkdir(parents=True, exist_ok=True)
+    print(f"Downloading voice model (~60 MB) from {VOICE_URL}...", flush=True)
+    with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp:
+        tar_path = tmp.name
+    try:
+        urllib.request.urlretrieve(VOICE_URL, tar_path)
+        with tarfile.open(tar_path, "r:gz") as tar:
+            tar.extractall(VOICE_MODEL.parent)
+    finally:
+        Path(tar_path).unlink(missing_ok=True)
 
 
 def synth_speech(text: str) -> bytes:
-    """Render `text` to PCM bytes using espeak-ng at our target format."""
+    """Render `text` to PCM bytes using Piper neural TTS at our target format."""
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
         path = tmp.name
     try:
         subprocess.run(
-            ["espeak-ng", "-w", path, "-s", "165", "-v", "en-us", text],
+            ["piper", "--model", str(VOICE_MODEL), "--output_file", path],
+            input=text,
+            text=True,
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -151,6 +176,7 @@ def encode_mp3(wav_path: Path, mp3_path: Path) -> None:
 
 
 def main() -> int:
+    ensure_voice()
     print("Synthesizing cues...", flush=True)
     pcm = build()
     duration_s = samples_to_seconds(pcm)
