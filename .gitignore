@@ -37,3 +37,6 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# Generator intermediate output (MP3 is the artifact)
+golf_warmup/warmup.wav

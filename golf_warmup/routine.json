@@ -1,0 +1,91 @@
+{
+  "intro": "Grab a golf club. Let's warm up. Starting in five, four, three, two, one.",
+  "outro": "Warmup complete. Have a great round.",
+  "exercises": [
+    {
+      "name": "Leg swings, front to back",
+      "announce": "Leg swings, front to back. Thirty seconds each side. Begin.",
+      "duration": 60,
+      "switch_at": 30
+    },
+    {
+      "name": "Leg swings, side to side, toe forward",
+      "announce": "Next: leg swings, side to side, toe pointed forward. Thirty seconds each side.",
+      "duration": 60,
+      "switch_at": 30
+    },
+    {
+      "name": "Leg swings, side to side, toe rotating",
+      "announce": "Next: leg swings, side to side, with toe rotation. Thirty seconds each side.",
+      "duration": 60,
+      "switch_at": 30
+    },
+    {
+      "name": "Chest openers",
+      "announce": "Set the club down. Next: chest openers. Thirty seconds.",
+      "duration": 30
+    },
+    {
+      "name": "Thoracic twists",
+      "announce": "Pick up your club. Next: thoracic twists. Thirty seconds each side.",
+      "duration": 60,
+      "switch_at": 30
+    },
+    {
+      "name": "Hip hinge with lat stretch",
+      "announce": "Next: hip hinge with lat stretch. Thirty seconds.",
+      "duration": 30
+    },
+    {
+      "name": "Front squat",
+      "announce": "Next: front squat. Thirty seconds.",
+      "duration": 30
+    },
+    {
+      "name": "Hip openers",
+      "announce": "Next: hip openers. Thirty seconds each side.",
+      "duration": 60,
+      "switch_at": 30
+    },
+    {
+      "name": "Hamstring sweeps",
+      "announce": "Set the club down. Next: hamstring sweeps, alternating legs. Thirty seconds.",
+      "duration": 30
+    },
+    {
+      "name": "Step back lunge",
+      "announce": "Pick up your club. Next: step back lunge, alternating legs. Forty-five seconds.",
+      "duration": 45
+    },
+    {
+      "name": "Side bend with toe tap",
+      "announce": "Set the club down. Next: side bend with toe tap, alternating. Thirty seconds.",
+      "duration": 30
+    },
+    {
+      "name": "Side lunge with lat stretch",
+      "announce": "Next: side lunge with lat stretch, alternating. Thirty seconds.",
+      "duration": 30
+    },
+    {
+      "name": "Speed skater, high",
+      "announce": "Next: speed skater, high, alternating. Thirty seconds.",
+      "duration": 30
+    },
+    {
+      "name": "Speed skater, low",
+      "announce": "Next: speed skater, low, alternating. Thirty seconds.",
+      "duration": 30
+    },
+    {
+      "name": "Cross body, elbow to knee",
+      "announce": "Next: cross body, elbow to knee. Thirty seconds.",
+      "duration": 30
+    },
+    {
+      "name": "Full upper body twist",
+      "announce": "Next: full upper body twist. Thirty seconds.",
+      "duration": 30
+    }
+  ]
+}
